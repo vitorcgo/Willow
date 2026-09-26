@@ -1,0 +1,267 @@
+.ai-edge-surface {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 1000;
+	font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+	color: #fff;
+}
+
+.ai-edge-pill {
+	position: absolute;
+	right: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 70px;
+	padding: 18px 0;
+	background: #050607;
+	border: 1px solid #30343a;
+	border-right: 0;
+	border-radius: 20px 0 0 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	pointer-events: auto;
+	box-shadow: -10px 0 28px rgba(0, 0, 0, 0.18);
+	--fillet: 38px;
+}
+
+.ai-edge-pill::before,
+.ai-edge-pill::after {
+	content: "";
+	position: absolute;
+	right: 0;
+	width: var(--fillet);
+	height: var(--fillet);
+	pointer-events: none;
+}
+
+.ai-edge-pill::before {
+	top: calc(-1 * var(--fillet));
+	background: radial-gradient(circle at 0 0, transparent 36.5px, #30343a 37.5px, #050607 38.5px);
+}
+
+.ai-edge-pill::after {
+	bottom: calc(-1 * var(--fillet));
+	background: radial-gradient(circle at 0 100%, transparent 36.5px, #30343a 37.5px, #050607 38.5px);
+}
+
+.ai-edge-cell {
+	width: 54px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: #fff;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	pointer-events: auto;
+	transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.ai-edge-cell:hover {
+	transform: scale(1.06);
+}
+
+.ai-edge-cell.dim {
+	opacity: 0.42;
+}
+
+.ai-edge-cell small {
+	font-size: 10px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
+
+.ai-edge-ring {
+	position: relative;
+	width: 44px;
+	height: 44px;
+	display: grid;
+	place-items: center;
+}
+
+.ai-edge-ring > svg {
+	position: absolute;
+	inset: 0;
+	transform: rotate(-90deg);
+}
+
+.ai-edge-ring > svg circle {
+	fill: none;
+	stroke-width: 3;
+}
+
+.ai-edge-track {
+	stroke: #2d3137;
+}
+
+.ai-edge-value {
+	stroke-linecap: round;
+	transition: stroke-dasharray 240ms ease;
+}
+
+.ai-edge-ring > span {
+	display: grid;
+	place-items: center;
+}
+
+.ai-provider-logo {
+	width: 20px;
+	height: 20px;
+	fill: currentColor;
+}
+
+.ai-edge-ring > i {
+	position: absolute;
+	right: 0;
+	bottom: 3px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: #49dd8a;
+	box-shadow: 0 0 8px #49dd8a;
+}
+
+.ai-edge-card {
+	position: absolute;
+	right: 100px;
+	top: 50%;
+	transform: translateY(-50%) translateX(8px) scale(0.98);
+	width: 246px;
+	box-sizing: border-box;
+	padding: 16px;
+	border: 1px solid #252a30;
+	border-radius: 16px;
+	background: rgba(8, 10, 12, 0.98);
+	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition: opacity 150ms ease, transform 180ms ease, visibility 150ms ease;
+}
+
+.ai-edge-card.show {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	transform: translateY(-50%) translateX(0) scale(1);
+}
+
+.ai-edge-tail {
+	position: absolute;
+	right: 69px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 32px;
+	height: 36px;
+	background: #080a0c;
+	clip-path: polygon(0 0, 100% 50%, 0 100%, 22% 50%);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition: opacity 150ms ease;
+}
+
+.ai-edge-tail.show {
+	opacity: 1;
+	visibility: visible;
+}
+
+.ai-edge-card-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.ai-edge-card-head > div {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+
+.ai-edge-card-head strong {
+	font-size: 14px;
+	font-weight: 750;
+}
+
+.ai-edge-card-head span,
+.ai-edge-empty {
+	font-size: 11px;
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.ai-edge-card-head button {
+	width: 27px;
+	height: 27px;
+	border-radius: 50%;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: rgba(255, 255, 255, 0.07);
+	color: #fff;
+	display: grid;
+	place-items: center;
+	cursor: pointer;
+}
+
+.ai-edge-card-head button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.ai-edge-windows {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.ai-edge-window > div:first-child {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.ai-edge-window b {
+	font-size: 12px;
+	font-weight: 650;
+}
+
+.ai-edge-window span,
+.ai-edge-window small {
+	font-size: 10px;
+	color: rgba(255, 255, 255, 0.48);
+}
+
+.ai-edge-meter {
+	height: 4px;
+	margin: 6px 0 4px;
+	border-radius: 99px;
+	background: #30343a;
+	overflow: hidden;
+}
+
+.ai-edge-meter i {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: linear-gradient(90deg, #6e9cff, #8edcff);
+}
+
+.ai-edge-empty {
+	margin: 6px 0 0;
+	line-height: 1.5;
+}
+
+@keyframes ai-edge-spin {
+	to { transform: rotate(360deg); }
+}
+
+.ai-edge-card .spinning {
+	animation: ai-edge-spin 800ms linear infinite;
+}
