@@ -8,7 +8,7 @@ body {
 	overflow: hidden;
 }
 
-body.browser-preview {
+.browser-preview-screen {
 	background:
 		radial-gradient(circle at 50% 0%, rgba(72, 123, 170, 0.28), transparent 42%),
 		linear-gradient(145deg, #17212b 0%, #0b1016 55%, #101a22 100%);

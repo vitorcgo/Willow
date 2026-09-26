@@ -527,9 +527,7 @@ function App() {
 	const [windowLabel, setWindowLabel] = useState<string>("");
 	const [browserSettingsOpen, setBrowserSettingsOpen] = useState(false);
 	useEffect(() => {
-		if (!isTauriRuntime) document.body.classList.add("browser-preview");
 		setWindowLabel(isTauriRuntime ? getCurrentWebviewWindow().label : "preview");
-		return () => document.body.classList.remove("browser-preview");
 	}, []);
 
 	// Update state
@@ -1818,7 +1816,10 @@ function App() {
 	}, [isHovered, mediaLayout, willowMode]);
 
 	return (
-		<div className="screen" style={{ overflow: "hidden" }}>
+		<div
+			className={`screen ${!isTauriRuntime ? "browser-preview-screen" : ""}`}
+			style={{ overflow: "hidden" }}
+		>
 			{!isTauriRuntime && (
 				<>
 					<AiUsageIsland />
