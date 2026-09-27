@@ -132,6 +132,8 @@ function SettingsApp() {
 							handleThemeModeChange={settings.handleThemeModeChange}
 							themeColor={settings.themeColor}
 							handleThemeColorChange={settings.handleThemeColorChange}
+							backgroundEffect={settings.backgroundEffect}
+							handleBackgroundEffectChange={settings.handleBackgroundEffectChange}
 							themeOpacity={settings.themeOpacity}
 							handleOpacityChange={settings.handleOpacityChange}
 							themeSaturation={settings.themeSaturation}
@@ -160,6 +162,8 @@ function SettingsApp() {
 							toggleTimerSound={settings.toggleTimerSound}
 							musicModeEnabled={settings.musicModeEnabled}
 							toggleMusicMode={settings.toggleMusicMode}
+							privacyIndicatorsEnabled={settings.privacyIndicatorsEnabled}
+							togglePrivacyIndicators={settings.togglePrivacyIndicators}
 							musicCompactNotch={settings.musicCompactNotch}
 							toggleMusicCompactNotch={settings.toggleMusicCompactNotch}
 							mediaLayout={settings.mediaLayout}

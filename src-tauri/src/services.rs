@@ -1717,6 +1717,127 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
     tx
 }
 
+fn capability_is_active(capability: &str) -> bool {
+    unsafe {
+        use windows::core::{PCWSTR, PWSTR};
+        use windows::Win32::System::Registry::{
+            RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER,
+            KEY_READ, REG_QWORD, REG_VALUE_TYPE,
+        };
+
+        unsafe fn query_qword(key: HKEY, name: &str) -> Option<u64> {
+            let wide_name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut value_type = REG_VALUE_TYPE::default();
+            let mut bytes = [0u8; 8];
+            let mut size = bytes.len() as u32;
+            let status = RegQueryValueExW(
+                key,
+                PCWSTR(wide_name.as_ptr()),
+                None,
+                Some(&mut value_type),
+                Some(bytes.as_mut_ptr()),
+                Some(&mut size),
+            );
+            if status.is_ok() && value_type == REG_QWORD && size == 8 {
+                Some(u64::from_le_bytes(bytes))
+            } else {
+                None
+            }
+        }
+
+        unsafe fn key_or_descendant_is_active(key: HKEY, depth: u8) -> bool {
+            let started = query_qword(key, "LastUsedTimeStart").unwrap_or(0);
+            let stopped = query_qword(key, "LastUsedTimeStop").unwrap_or(u64::MAX);
+            if started > 0 && stopped == 0 {
+                return true;
+            }
+            if depth == 0 {
+                return false;
+            }
+
+            let mut index = 0u32;
+            loop {
+                let mut name = [0u16; 1024];
+                let mut name_len = (name.len() - 1) as u32;
+                let status = RegEnumKeyExW(
+                    key,
+                    index,
+                    Some(PWSTR(name.as_mut_ptr())),
+                    &mut name_len,
+                    None,
+                    None,
+                    None,
+                    None,
+                );
+                if !status.is_ok() {
+                    break;
+                }
+                index += 1;
+
+                let mut child = HKEY::default();
+                let mut child_name = name[..name_len as usize].to_vec();
+                child_name.push(0);
+                if RegOpenKeyExW(
+                    key,
+                    PCWSTR(child_name.as_ptr()),
+                    Some(0),
+                    KEY_READ,
+                    &mut child,
+                )
+                .is_ok()
+                {
+                    let active = key_or_descendant_is_active(child, depth - 1);
+                    let _ = RegCloseKey(child);
+                    if active {
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+
+        let path = format!(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\{capability}"
+        );
+        let wide_path: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut key = HKEY::default();
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(wide_path.as_ptr()),
+            Some(0),
+            KEY_READ,
+            &mut key,
+        )
+        .is_err()
+        {
+            return false;
+        }
+        let active = key_or_descendant_is_active(key, 3);
+        let _ = RegCloseKey(key);
+        active
+    }
+}
+
+/// Watches the Windows privacy capability store. The registry records active
+/// microphone and camera sessions with LastUsedTimeStop equal to zero, covering
+/// both packaged applications and traditional desktop programs.
+pub fn setup_privacy_monitor(app_handle: AppHandle) {
+    std::thread::spawn(move || {
+        let mut previous: Option<crate::types::PrivacyStateEvent> = None;
+        loop {
+            let current = crate::types::PrivacyStateEvent {
+                microphone: capability_is_active("microphone"),
+                camera: capability_is_active("webcam"),
+            };
+            if previous.as_ref() != Some(&current) {
+                let _ = app_handle.emit("privacy-state", current.clone());
+                previous = Some(current);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(650));
+        }
+    });
+}
+
 fn set_physical_monitors_brightness(brightness: u32) -> bool {
     unsafe {
         use windows::core::BOOL;

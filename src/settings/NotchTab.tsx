@@ -6,6 +6,7 @@ import {
 	Calendar,
 	BellRing,
 	Music,
+	Mic,
 	Minimize2,
 	LayoutList,
 	Sparkles,
@@ -33,6 +34,8 @@ interface NotchTabProps {
 	toggleTimerSound: () => void;
 	musicModeEnabled: boolean;
 	toggleMusicMode: () => void;
+	privacyIndicatorsEnabled: boolean;
+	togglePrivacyIndicators: () => void;
 	musicCompactNotch: boolean;
 	toggleMusicCompactNotch: () => void;
 	mediaLayout: "classic" | "compact";
@@ -73,6 +76,8 @@ export function NotchTab({
 	toggleTimerSound,
 	musicModeEnabled,
 	toggleMusicMode,
+	privacyIndicatorsEnabled,
+	togglePrivacyIndicators,
 	musicCompactNotch,
 	toggleMusicCompactNotch,
 	mediaLayout,
@@ -179,6 +184,21 @@ export function NotchTab({
 						)}
 					</>
 				)}
+
+				<SettingRow
+					icon={Mic}
+					label="Indicadores de privacidade"
+					desc="Mostra quando microfone ou câmera estão em uso"
+				>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={privacyIndicatorsEnabled}
+							onChange={togglePrivacyIndicators}
+						/>
+						<span className="slider"></span>
+					</label>
+				</SettingRow>
 
 				<SettingRow
 					icon={Calendar}

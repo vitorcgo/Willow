@@ -205,6 +205,8 @@ body {
 	padding: 8px 8px;
 	border-radius: 18px 18px 0 0;
 	background: var(--willow-bg, rgba(0, 0, 0, 0.8));
+	backdrop-filter: var(--willow-backdrop-filter, blur(20px));
+	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(20px));
 	border: none;
 	color: var(--willow-text, white);
 	position: relative;

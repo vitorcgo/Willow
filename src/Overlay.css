@@ -110,6 +110,8 @@ body,
 	justify-content: space-between;
 	padding: 16px 0;
 	background: var(--willow-bg, rgba(0, 0, 0, 0.8));
+	backdrop-filter: var(--willow-backdrop-filter, blur(18px));
+	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(18px));
 	border-radius: 0 18px 18px 0;
 	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.1));
 	border-left: none;
@@ -222,6 +224,8 @@ body,
 	justify-content: space-between;
 	padding: 16px 0;
 	background: var(--willow-bg, rgba(0, 0, 0, 0.8));
+	backdrop-filter: var(--willow-backdrop-filter, blur(18px));
+	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(18px));
 	border-radius: 18px 0 0 18px;
 	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.1));
 	border-right: none;

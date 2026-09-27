@@ -16,6 +16,25 @@ function hexToRgba(hex: string, alpha: number): string {
 	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function getHexAlpha(hex: string): number {
+	const normalized = hex.replace("#", "");
+	if (normalized.length !== 8) return 1;
+	const parsed = parseInt(normalized.slice(6, 8), 16);
+	return Number.isNaN(parsed) ? 1 : parsed / 255;
+}
+
+function applyBackgroundEffect(root: HTMLElement) {
+	const effect = localStorage.getItem("willow-background-effect") || "acrylic";
+	root.dataset.backgroundEffect = effect;
+	const filter =
+		effect === "acrylic"
+			? "blur(32px) saturate(1.65) contrast(1.04)"
+			: effect === "blur"
+				? "blur(18px) saturate(1.22)"
+				: "none";
+	root.style.setProperty("--willow-backdrop-filter", filter);
+}
+
 function setAccentTokens(root: HTMLElement, accent: string) {
 	const accentLightness = hexToHsl(accent).l;
 	root.style.setProperty("--willow-accent", accent);
@@ -123,6 +142,7 @@ export async function applyTheme(
 	brightness?: number
 ) {
 	const root = document.documentElement;
+	applyBackgroundEffect(root);
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("willow-theme-opacity");
@@ -139,8 +159,10 @@ export async function applyTheme(
 		brightness = cachedBrightness !== null ? parseFloat(cachedBrightness) : 0.15;
 	}
 
-	const op = opacity;
-	const opExpanded = Math.min(1.0, opacity + 0.12);
+	const colorAlpha = getHexAlpha(customColor);
+	const op = Math.min(1, opacity * colorAlpha);
+	const opExpanded = Math.min(1, op * 1.15);
+	const opaqueCustomColor = customColor.slice(0, 7);
 
 	if (mode === "light") {
 		root.style.setProperty("--willow-bg", `rgba(255, 255, 255, ${op})`);
@@ -149,14 +171,14 @@ export async function applyTheme(
 		root.style.setProperty("--willow-text-muted", "rgba(28, 28, 30, 0.65)");
 		root.style.setProperty("--willow-border", "rgba(0, 0, 0, 0.12)");
 		root.style.setProperty("--willow-group-bg", "rgba(0, 0, 0, 0.04)");
-		setAccentTokens(root, customColor);
+		setAccentTokens(root, opaqueCustomColor);
 		root.style.setProperty("--willow-scrollbar-thumb", "rgba(0, 0, 0, 0.15)");
 		root.classList.add("light-mode");
 		root.classList.remove("dark-mode");
 		root.classList.add("theme-light");
 		root.classList.remove("theme-dark", "theme-custom", "theme-adaptive");
 	} else if (mode === "custom") {
-		const hsl = hexToHsl(customColor);
+		const hsl = hexToHsl(opaqueCustomColor);
 		hsl.s = saturation * 100;
 		hsl.l = brightness * 100;
 		const finalBgColor = hslToHex(hsl.h, hsl.s, hsl.l);
@@ -177,7 +199,7 @@ export async function applyTheme(
 			"--willow-group-bg",
 			isLight ? "rgba(0, 0, 0, 0.04)" : "rgba(255, 255, 255, 0.04)"
 		);
-		setAccentTokens(root, customColor);
+		setAccentTokens(root, opaqueCustomColor);
 		root.style.setProperty(
 			"--willow-scrollbar-thumb",
 			isLight ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.15)"
@@ -241,7 +263,7 @@ export async function applyTheme(
 		root.style.setProperty("--willow-text-muted", "rgba(255, 255, 255, 0.6)");
 		root.style.setProperty("--willow-border", "rgba(255, 255, 255, 0.1)");
 		root.style.setProperty("--willow-group-bg", "rgba(255, 255, 255, 0.04)");
-		setAccentTokens(root, customColor);
+		setAccentTokens(root, opaqueCustomColor);
 		root.style.setProperty("--willow-scrollbar-thumb", "rgba(255, 255, 255, 0.1)");
 		root.classList.add("dark-mode");
 		root.classList.remove("light-mode");
@@ -259,6 +281,7 @@ export function initTheme() {
 	const syncSaturation = syncSaturationVal !== null ? parseFloat(syncSaturationVal) : 0.5;
 	const syncBrightnessVal = localStorage.getItem("willow-theme-brightness");
 	const syncBrightness = syncBrightnessVal !== null ? parseFloat(syncBrightnessVal) : 0.15;
+	const syncBackgroundEffect = localStorage.getItem("willow-background-effect") || "acrylic";
 
 	// Fast synchronous draw using cached localStorage
 	applyTheme(syncMode, syncColor, syncOpacity, syncSaturation, syncBrightness);
@@ -279,19 +302,24 @@ export function initTheme() {
 			const brightnessVal = settings["willow-theme-brightness"]
 				? parseFloat(String(settings["willow-theme-brightness"]))
 				: syncBrightness;
+			const backgroundEffect = settings["willow-background-effect"]
+				? String(settings["willow-background-effect"])
+				: syncBackgroundEffect;
 
 			if (
 				mode !== syncMode ||
 				color !== syncColor ||
 				opacityVal !== syncOpacity ||
 				saturationVal !== syncSaturation ||
-				brightnessVal !== syncBrightness
+				brightnessVal !== syncBrightness ||
+				backgroundEffect !== syncBackgroundEffect
 			) {
 				localStorage.setItem("willow-theme-mode", mode);
 				localStorage.setItem("willow-theme-color", color);
 				localStorage.setItem("willow-theme-opacity", String(opacityVal));
 				localStorage.setItem("willow-theme-saturation", String(saturationVal));
 				localStorage.setItem("willow-theme-brightness", String(brightnessVal));
+				localStorage.setItem("willow-background-effect", backgroundEffect);
 				applyTheme(mode, color, opacityVal, saturationVal, brightnessVal);
 			}
 		})
@@ -312,7 +340,8 @@ export function initTheme() {
 		"willow-theme-color",
 		"willow-theme-opacity",
 		"willow-theme-saturation",
-		"willow-theme-brightness"
+		"willow-theme-brightness",
+		"willow-background-effect"
 	];
 
 	// Listen to setting changes broadcasted from settings window

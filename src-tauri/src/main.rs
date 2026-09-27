@@ -370,6 +370,7 @@ fn main() {
             setup_thumbnail_capture(app.handle().clone());
             let tx = setup_system_worker(app.handle().clone());
             let _ = COMMAND_SENDER.set(tx.clone());
+            setup_privacy_monitor(app.handle().clone());
             let _hook = services::setup_keyboard_hook(app.handle().clone());
             setup_taskbar_hook();
             setup_settings_watcher(app.handle().clone());

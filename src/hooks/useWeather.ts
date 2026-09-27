@@ -53,6 +53,28 @@ interface WeatherState {
 	temperature: number | null;
 	weatherCondition: string;
 	weatherIcon: ComponentType<LucideProps>;
+	details: WeatherDetails;
+}
+
+export interface WeatherForecastDay {
+	date: string;
+	condition: string;
+	icon: ComponentType<LucideProps>;
+	minimum: number;
+	maximum: number;
+	precipitation: number;
+}
+
+export interface WeatherDetails {
+	apparentTemperature: number;
+	humidity: number;
+	windSpeed: number;
+	minimum: number;
+	maximum: number;
+	precipitation: number;
+	sunrise: string;
+	sunset: string;
+	forecast: WeatherForecastDay[];
 }
 
 interface ResolvedLocation {
@@ -101,7 +123,7 @@ async function fetchWeatherForCoords(
 ): Promise<WeatherState> {
 	const unitParam = unit === "fahrenheit" ? "&temperature_unit=fahrenheit" : "";
 	const response = await fetch(
-		`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,is_day&timezone=auto${unitParam}`
+		`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&forecast_days=5&timezone=auto${unitParam}`
 	);
 
 	if (!response.ok) {
@@ -118,11 +140,37 @@ async function fetchWeatherForCoords(
 	const code = data.current.weather_code;
 	const condition = WMO_CODES[code] || "Condição desconhecida";
 	const isDay = data.current.is_day === 1;
+	const daily = data.daily || {};
+	const forecast: WeatherForecastDay[] = Array.isArray(daily.time)
+		? daily.time.slice(0, 5).map((date: string, index: number) => {
+				const dayCode = Number(daily.weather_code?.[index]);
+				const dayCondition = WMO_CODES[dayCode] || "Condição desconhecida";
+				return {
+					date,
+					condition: dayCondition,
+					icon: getWeatherIcon(dayCondition, true),
+					minimum: Math.round(Number(daily.temperature_2m_min?.[index]) || 0),
+					maximum: Math.round(Number(daily.temperature_2m_max?.[index]) || 0),
+					precipitation: Math.round(Number(daily.precipitation_probability_max?.[index]) || 0)
+				};
+			})
+		: [];
 
 	return {
 		temperature: temp,
 		weatherCondition: condition,
-		weatherIcon: getWeatherIcon(condition, isDay)
+		weatherIcon: getWeatherIcon(condition, isDay),
+		details: {
+			apparentTemperature: Math.round(Number(data.current.apparent_temperature) || temp),
+			humidity: Math.round(Number(data.current.relative_humidity_2m) || 0),
+			windSpeed: Math.round(Number(data.current.wind_speed_10m) || 0),
+			minimum: forecast[0]?.minimum ?? temp,
+			maximum: forecast[0]?.maximum ?? temp,
+			precipitation: forecast[0]?.precipitation ?? 0,
+			sunrise: String(daily.sunrise?.[0] || ""),
+			sunset: String(daily.sunset?.[0] || ""),
+			forecast
+		}
 	};
 }
 
@@ -132,7 +180,8 @@ async function resolveLocation(): Promise<ResolvedLocation> {
 		const settings = (await invoke("load_settings").catch(() => ({}))) as Record<string, any>;
 		const savedLat = settings["willow-weather-lat"] || localStorage.getItem("willow-weather-lat");
 		const savedLon = settings["willow-weather-lon"] || localStorage.getItem("willow-weather-lon");
-		const savedCity = settings["willow-weather-city"] || localStorage.getItem("willow-weather-city");
+		const savedCity =
+			settings["willow-weather-city"] || localStorage.getItem("willow-weather-city");
 
 		if (isValidCoordinate(savedLat, -90, 90) && isValidCoordinate(savedLon, -180, 180)) {
 			return {
@@ -165,10 +214,7 @@ async function resolveLocation(): Promise<ResolvedLocation> {
 		const res = await fetch("https://ip-api.com/json/?fields=status,lat,lon,city,country");
 		if (res.ok) {
 			const data = await res.json();
-			if (
-				isValidCoordinate(data.lat, -90, 90) &&
-				isValidCoordinate(data.lon, -180, 180)
-			) {
+			if (isValidCoordinate(data.lat, -90, 90) && isValidCoordinate(data.lon, -180, 180)) {
 				return { lat: Number(data.lat), lon: Number(data.lon), city: data.city || undefined };
 			}
 		}
@@ -203,6 +249,8 @@ export function useWeather(enabled: boolean) {
 		() => localStorage.getItem("willow-weather-cached-condition") || ""
 	);
 	const [weatherIcon, setWeatherIcon] = useState<ComponentType<LucideProps>>(() => Thermometer);
+	const [weatherDetails, setWeatherDetails] = useState<WeatherDetails | null>(null);
+	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [cityName, setCityName] = useState<string>(
 		() => localStorage.getItem("willow-weather-city") || ""
 	);
@@ -220,6 +268,7 @@ export function useWeather(enabled: boolean) {
 	const doFetch = useCallback(
 		async (showStaleOnError = true, coords?: { lat: number; lon: number; city?: string }) => {
 			if (!enabledRef.current) return;
+			setIsRefreshing(true);
 
 			try {
 				const location = coords || (await resolveLocation());
@@ -228,6 +277,7 @@ export function useWeather(enabled: boolean) {
 				setTemperature(result.temperature);
 				setWeatherCondition(result.weatherCondition);
 				setWeatherIcon(() => result.weatherIcon);
+				setWeatherDetails(result.details);
 				persistWeather(result.temperature, result.weatherCondition);
 
 				// Update city name if resolved from IP geolocation
@@ -243,6 +293,8 @@ export function useWeather(enabled: boolean) {
 					setWeatherCondition("Partly Cloudy");
 					setWeatherIcon(() => Cloud);
 				}
+			} finally {
+				setIsRefreshing(false);
 			}
 		},
 		[]
@@ -283,9 +335,7 @@ export function useWeather(enabled: boolean) {
 		const unlisten = listen<{ key: string; value: any }>("settings-changed", (event) => {
 			const { key, value } = event.payload;
 			if (key === "willow-temp-unit" || key === "temp-unit") {
-				setTempUnit(
-					key === "willow-temp-unit" ? String(value) : value ? "fahrenheit" : "celsius"
-				);
+				setTempUnit(key === "willow-temp-unit" ? String(value) : value ? "fahrenheit" : "celsius");
 			}
 		});
 		const unlistenExternal = listen<{ key: string; value: any }>(
@@ -310,16 +360,16 @@ export function useWeather(enabled: boolean) {
 		const unlisten = listen<{ lat: number; lon: number; city?: string } | true>(
 			"weather-refresh",
 			(event) => {
-			const payload = event.payload;
-			if (payload && typeof payload === "object" && "lat" in payload && "lon" in payload) {
-				doFetch(false, {
-					lat: Number(payload.lat),
-					lon: Number(payload.lon),
-					city: payload.city
-				});
-			} else {
-				doFetch(false);
-			}
+				const payload = event.payload;
+				if (payload && typeof payload === "object" && "lat" in payload && "lon" in payload) {
+					doFetch(false, {
+						lat: Number(payload.lat),
+						lon: Number(payload.lon),
+						city: payload.city
+					});
+				} else {
+					doFetch(false);
+				}
 			}
 		);
 		return () => {
@@ -361,6 +411,9 @@ export function useWeather(enabled: boolean) {
 		weatherCondition,
 		weatherIcon,
 		cityName,
-		tempUnit
+		tempUnit,
+		weatherDetails,
+		isRefreshing,
+		refreshWeather: () => doFetch(false)
 	};
 }

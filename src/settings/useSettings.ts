@@ -67,6 +67,9 @@ export function useSettings() {
 		() => localStorage.getItem("willow-timer-sound-enabled") !== "false"
 	);
 	const [musicModeEnabled, setMusicModeEnabled] = useState(true);
+	const [privacyIndicatorsEnabled, setPrivacyIndicatorsEnabled] = useState(
+		() => localStorage.getItem("willow-privacy-indicators-enabled") !== "false"
+	);
 	const [musicCompactNotch, setMusicCompactNotch] = useState(true);
 	const [volumeOverlayEnabled, setVolumeOverlayEnabled] = useState(true);
 	const [volumeEdgeEnabled, setVolumeEdgeEnabled] = useState(
@@ -116,7 +119,7 @@ export function useSettings() {
 		() => localStorage.getItem("willow-dock-win-number-enabled") !== "false"
 	);
 	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
-		() => localStorage.getItem("willow-dock-system-section-enabled") !== "false"
+		() => localStorage.getItem("willow-dock-system-section-enabled") === "true"
 	);
 	const [dockSystemSectionSide, setDockSystemSectionSide] = useState(() =>
 		localStorage.getItem("willow-dock-system-section-side") === "left" ? "left" : "right"
@@ -170,6 +173,10 @@ export function useSettings() {
 	const [themeColor, setThemeColor] = useState(
 		() => localStorage.getItem("willow-theme-color") || "#007aff"
 	);
+	const [backgroundEffect, setBackgroundEffect] = useState(() => {
+		const value = localStorage.getItem("willow-background-effect") || "acrylic";
+		return ["none", "blur", "acrylic"].includes(value) ? value : "acrylic";
+	});
 	const [themeOpacity, setThemeOpacity] = useState(() => {
 		const val = localStorage.getItem("willow-theme-opacity");
 		return val !== null ? parseFloat(val) : 0.8;
@@ -211,6 +218,7 @@ export function useSettings() {
 			apply(getVal("willow-calendar-enabled"), setCalendarEnabled, readBool);
 			apply(getVal("willow-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("willow-music-mode-enabled"), setMusicModeEnabled, readBool);
+			apply(getVal("willow-privacy-indicators-enabled"), setPrivacyIndicatorsEnabled, readBool);
 			apply(getVal("willow-music-compact-notch"), setMusicCompactNotch, readBool);
 			apply(getVal("willow-volume-overlay-enabled"), setVolumeOverlayEnabled, readBool);
 			apply(getVal("willow-brightness-overlay-enabled"), setBrightnessOverlayEnabled, readBool);
@@ -267,6 +275,9 @@ export function useSettings() {
 
 			apply(getVal("willow-theme-mode"), setThemeMode, (v) => v);
 			apply(getVal("willow-theme-color"), setThemeColor, (v) => v);
+			apply(getVal("willow-background-effect"), setBackgroundEffect, (v) =>
+				["none", "blur", "acrylic"].includes(v) ? v : "acrylic"
+			);
 			apply(getVal("willow-theme-opacity"), setThemeOpacity, parseFloat);
 			apply(getVal("willow-theme-saturation"), setThemeSaturation, parseFloat);
 			apply(getVal("willow-theme-brightness"), setThemeBrightness, parseFloat);
@@ -327,6 +338,7 @@ export function useSettings() {
 		"willow-dock-system-pictures": setDockSystemPictures,
 		"willow-dock-system-recycle-bin": setDockSystemRecycleBin,
 		"willow-weather-enabled": setWeatherEnabled,
+		"willow-privacy-indicators-enabled": setPrivacyIndicatorsEnabled,
 		"willow-calendar-enabled": setCalendarEnabled,
 		"willow-timer-sound-enabled": setTimerSoundEnabled,
 		"willow-music-mode-enabled": setMusicModeEnabled,
@@ -347,6 +359,7 @@ export function useSettings() {
 		"willow-brightness-edge-enabled": setBrightnessEdgeEnabled,
 		"willow-theme-mode": setThemeMode,
 		"willow-theme-color": setThemeColor,
+		"willow-background-effect": setBackgroundEffect,
 		"willow-theme-opacity": setThemeOpacity,
 		"willow-theme-saturation": setThemeSaturation,
 		"willow-theme-brightness": setThemeBrightness,
@@ -548,6 +561,12 @@ export function useSettings() {
 		const next = !musicModeEnabled;
 		setMusicModeEnabled(next);
 		saveSetting("willow-music-mode-enabled", String(next));
+	};
+
+	const togglePrivacyIndicators = () => {
+		const next = !privacyIndicatorsEnabled;
+		setPrivacyIndicatorsEnabled(next);
+		saveSetting("willow-privacy-indicators-enabled", String(next));
 	};
 
 	const toggleMusicCompactNotch = () => {
@@ -774,6 +793,12 @@ export function useSettings() {
 		}
 	};
 
+	const handleBackgroundEffectChange = (effect: string) => {
+		const next = ["none", "blur", "acrylic"].includes(effect) ? effect : "acrylic";
+		setBackgroundEffect(next);
+		saveSetting("willow-background-effect", next);
+	};
+
 	const handleOpacityChange = (value: number) => {
 		setThemeOpacity(value);
 		saveSetting("willow-theme-opacity", String(value));
@@ -906,6 +931,8 @@ export function useSettings() {
 		handleThemeModeChange,
 		themeColor,
 		handleThemeColorChange,
+		backgroundEffect,
+		handleBackgroundEffectChange,
 		themeOpacity,
 		handleOpacityChange,
 		themeSaturation,
@@ -930,6 +957,8 @@ export function useSettings() {
 		toggleTimerSound,
 		musicModeEnabled,
 		toggleMusicMode,
+		privacyIndicatorsEnabled,
+		togglePrivacyIndicators,
 		musicCompactNotch,
 		toggleMusicCompactNotch,
 		mediaLayout,

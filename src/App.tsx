@@ -1,5 +1,5 @@
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
-import { useEffect, useState, useCallback, useRef, memo } from "react";
+import { useEffect, useState, useCallback, useRef, memo, useMemo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -33,7 +33,16 @@ import {
 	BellRing,
 	Play,
 	Pause,
-	RotateCcw
+	RotateCcw,
+	Droplets,
+	Wind,
+	Sunrise,
+	Sunset,
+	Umbrella,
+	MapPin,
+	RefreshCw,
+	Search,
+	Thermometer
 } from "lucide-react";
 
 // Pomodoro timer limit.
@@ -544,7 +553,25 @@ function App() {
 	const [windowLabel, setWindowLabel] = useState<string>("");
 	const [browserSettingsOpen, setBrowserSettingsOpen] = useState(false);
 	const [trayApps, setTrayApps] = useState<TrayAppInfo[]>(isTauriRuntime ? [] : BROWSER_TRAY_APPS);
+	const [installedTrayApps, setInstalledTrayApps] = useState<TrayAppInfo[]>(
+		isTauriRuntime ? [] : BROWSER_TRAY_APPS
+	);
+	const [traySearch, setTraySearch] = useState("");
+	const [trayIcons, setTrayIcons] = useState<Record<string, string>>({});
 	const [trayAppsLoading, setTrayAppsLoading] = useState(false);
+	const visibleTrayApps = useMemo(() => {
+		const query = traySearch.trim().toLocaleLowerCase("pt-BR");
+		const source = query ? installedTrayApps : trayApps;
+		const seen = new Set<string>();
+		return source
+			.filter((app) => {
+				const key = `${app.path}:${app.name}`.toLowerCase();
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return !query || app.name.toLocaleLowerCase("pt-BR").includes(query);
+			})
+			.slice(0, query ? 12 : 6);
+	}, [installedTrayApps, trayApps, traySearch]);
 	useEffect(() => {
 		setWindowLabel(isTauriRuntime ? getCurrentWebviewWindow().label : "preview");
 	}, []);
@@ -602,6 +629,10 @@ function App() {
 
 	const [isVisible, setIsVisible] = useState(true);
 	const [areCornersVisible, setAreCornersVisible] = useState(true);
+	const [privacyState, setPrivacyState] = useState({ microphone: false, camera: false });
+	const [settingsPrivacyIndicatorsEnabled, setSettingsPrivacyIndicatorsEnabled] = useState(
+		() => localStorage.getItem("willow-privacy-indicators-enabled") !== "false"
+	);
 	const [isImpacted, setIsImpacted] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [startupAnimating, setStartupAnimating] = useState(false);
@@ -625,9 +656,12 @@ function App() {
 	const dockModeInitial = useRef(true);
 	const notchModeInitial = useRef(true);
 
+	const privacyActive =
+		settingsPrivacyIndicatorsEnabled && (privacyState.microphone || privacyState.camera);
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
 	const isHidden =
 		!startupAnimating &&
+		!privacyActive &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none") ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
@@ -809,7 +843,10 @@ function App() {
 		weatherCondition,
 		weatherIcon: WeatherIcon,
 		cityName,
-		tempUnit
+		tempUnit,
+		weatherDetails,
+		isRefreshing: isWeatherRefreshing,
+		refreshWeather
 	} = useWeather(settingsWeatherEnabled);
 
 	useEffect(() => {
@@ -829,6 +866,9 @@ function App() {
 				setSettingsCalendarEnabled(getVal("willow-calendar-enabled", "true") !== "false");
 				setSettingsTimerSoundEnabled(getVal("willow-timer-sound-enabled", "true") !== "false");
 				setSettingsMusicModeEnabled(getVal("willow-music-mode-enabled", "true") !== "false");
+				setSettingsPrivacyIndicatorsEnabled(
+					getVal("willow-privacy-indicators-enabled", "true") !== "false"
+				);
 				setSettingsMusicCompactNotch(getVal("willow-music-compact-notch", "true") !== "false");
 				const viz =
 					getVal("willow-media-visualizer-enabled") ?? getVal("willow-visualizer-enabled", "true");
@@ -957,12 +997,17 @@ function App() {
 		const unlistenNotchEdgeHover = listen<boolean>("notch-edge-hover", (event) => {
 			setIsEdgeHovered(event.payload);
 		});
+		const unlistenPrivacyState = listen<{ microphone: boolean; camera: boolean }>(
+			"privacy-state",
+			(event) => setPrivacyState(event.payload)
+		);
 
 		return () => {
 			unlistenVisibility.then((f) => f());
 			unlistenCornersVisibility.then((f) => f());
 			unlistenNotchOverlap.then((f) => f());
 			unlistenNotchEdgeHover.then((f) => f());
+			unlistenPrivacyState.then((f) => f());
 			document.removeEventListener("contextmenu", preventContext);
 		};
 	}, [windowLabel]);
@@ -974,6 +1019,7 @@ function App() {
 			"willow-calendar-enabled": setSettingsCalendarEnabled,
 			"willow-timer-sound-enabled": setSettingsTimerSoundEnabled,
 			"willow-music-mode-enabled": setSettingsMusicModeEnabled,
+			"willow-privacy-indicators-enabled": setSettingsPrivacyIndicatorsEnabled,
 			"willow-music-compact-notch": setSettingsMusicCompactNotch,
 			"willow-media-visualizer-enabled": setSettingsVisualizerEnabled,
 			"willow-visualizer-enabled": setSettingsVisualizerEnabled,
@@ -1037,7 +1083,7 @@ function App() {
 		invoke("change_notch_mode", { mode: notchMode });
 	}, [notchMode, windowLabel]);
 
-	type WillowMode = "music" | "calendar" | "command-center" | "tray" | "status";
+	type WillowMode = "music" | "calendar" | "command-center" | "tray" | "weather" | "status";
 	const [willowMode, setWillowMode] = useState<WillowMode>("status");
 	const changeMediaLayout = useCallback((layout: "classic" | "compact") => {
 		setMediaLayout(layout);
@@ -1055,14 +1101,55 @@ function App() {
 		setWillowMode("tray");
 		if (!isTauriRuntime) return;
 		setTrayAppsLoading(true);
-		try {
-			const activeApps = await invoke<TrayAppInfo[]>("get_active_windows");
-			setTrayApps(activeApps.filter((app) => app.name && app.path).slice(0, 15));
-		} catch {
-			setTrayApps([]);
-		} finally {
-			setTrayAppsLoading(false);
-		}
+		invoke<TrayAppInfo[]>("get_active_windows")
+			.then((activeApps) =>
+				setTrayApps(activeApps.filter((app) => app.name && app.path).slice(0, 15))
+			)
+			.catch(() => setTrayApps([]))
+			.finally(() => setTrayAppsLoading(false));
+		invoke<TrayAppInfo[]>("get_installed_apps")
+			.then((apps) =>
+				setInstalledTrayApps(
+					apps
+						.filter((app) => app.name && app.path)
+						.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+				)
+			)
+			.catch(() => setInstalledTrayApps([]));
+	};
+
+	useEffect(() => {
+		if (willowMode !== "tray" || !isTauriRuntime) return;
+		let active = true;
+		const missing = visibleTrayApps.filter((app) => !app.icon && !trayIcons[app.path]);
+		if (missing.length === 0) return;
+		Promise.all(
+			missing.map(async (app) => {
+				const icon = await invoke<string | null>("get_app_icon", {
+					path: app.path,
+					name: app.name,
+					hwnd: app.hwnd || null
+				}).catch(() => null);
+				return icon ? ([app.path, icon] as const) : null;
+			})
+		).then((entries) => {
+			if (!active) return;
+			setTrayIcons((current) => ({
+				...current,
+				...Object.fromEntries(
+					entries.filter((entry): entry is readonly [string, string] => !!entry)
+				)
+			}));
+		});
+		return () => {
+			active = false;
+		};
+	}, [willowMode, visibleTrayApps, trayIcons]);
+	const toggleWeatherPanel = (event: React.MouseEvent) => {
+		event.stopPropagation();
+		if (!settingsWeatherEnabled || temperature === null) return;
+		setIsHovered(true);
+		setWillowMode((current) => (current === "weather" ? "status" : "weather"));
 	};
 
 	// Window height is now kept constant to prevent rendering layout lag and sharp corners
@@ -1086,11 +1173,12 @@ function App() {
 		// Music shifts position based on playing state.
 		const musicBeforeStatus = isPlaying && mediaInfo.has_media && settingsMusicModeEnabled;
 		const modes: WillowMode[] = musicBeforeStatus
-			? ["command-center", "tray", "music", "status", "calendar"]
-			: ["command-center", "tray", "status", "music", "calendar"];
+			? ["command-center", "tray", "music", "status", "weather", "calendar"]
+			: ["command-center", "tray", "status", "weather", "music", "calendar"];
 		const availableModes = modes.filter((m) => {
 			if (m === "music" && (!settingsMusicModeEnabled || !mediaInfo.has_media)) return false;
 			if (m === "calendar" && !settingsCalendarEnabled) return false;
+			if (m === "weather" && (!settingsWeatherEnabled || temperature === null)) return false;
 			return true;
 		});
 
@@ -1776,16 +1864,18 @@ function App() {
 			case "weather":
 				if (!settingsWeatherEnabled || temperature === null) return null;
 				return (
-					<div
-						className="passive-feature"
+					<button
+						type="button"
+						className="passive-feature weather-feature-button"
 						key="weather"
 						title={cityName ? `${weatherCondition}: ${cityName}` : weatherCondition}
+						onClick={toggleWeatherPanel}
 					>
 						<WeatherIcon size={12} strokeWidth={2.2} />
 						<span className="label">
 							{temperature}°{tempUnit === "fahrenheit" ? "F" : "C"}
 						</span>
-					</div>
+					</button>
 				);
 			case "battery":
 				return (
@@ -1844,19 +1934,20 @@ function App() {
 
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
+		const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
 		if (isCalendarMode) return 480;
-		if (willowMode === "command-center" && isHovered) return 350;
-		if (willowMode === "tray" && isHovered) return 350;
+		if (willowMode === "weather" && isHovered) return 480;
+		if (willowMode === "command-center" && isHovered) return Math.min(350 + totalWidgets * 36, 540);
+		if (willowMode === "tray" && isHovered) return Math.min(390 + totalWidgets * 28, 540);
 		if (willowMode === "status" && isHovered) {
-			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
 			return Math.min(200 + totalWidgets * 50, 380);
 		}
-		if (isMusicMode && isHovered) return mediaLayout === "compact" ? 356 : 396;
+		if (isMusicMode && isHovered)
+			return Math.min((mediaLayout === "compact" ? 356 : 396) + totalWidgets * 34, 560);
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
-		let w = 140;
+		let w = 140 + totalWidgets * 38;
 		if (isMusicMode) {
-			w = 140;
 			if (settingsVisualizerEnabled && isPlaying) w += 30;
 			if (settingsAlbumArtEnabled) w += 30;
 
@@ -1865,7 +1956,7 @@ function App() {
 			}
 		}
 
-		return w;
+		return Math.min(w, 520);
 	};
 
 	const getDynamicHeight = () => {
@@ -1874,12 +1965,13 @@ function App() {
 		}
 		// Sized to the calendar's week-row count plus the timer's fixed content.
 		if (willowMode === "calendar") return calendarMonthRows >= 6 ? 305 : 273;
+		if (willowMode === "weather") return isHovered ? 258 : 36;
 		if (willowMode === "command-center") return isHovered ? 230 : 36;
-		if (willowMode === "tray") return isHovered ? 220 : 36;
+		if (willowMode === "tray") return isHovered ? 286 : 36;
 		if (willowMode === "status") return 36;
 		if (isMusicMode && isHovered) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
-			let h = mediaLayout === "compact" ? (hasProgressBar ? 132 : 116) : 120;
+			let h = mediaLayout === "compact" ? (hasProgressBar ? 152 : 136) : 140;
 			if (mediaLayout === "compact") {
 				if (compactVolumeExpanded) h += 36;
 			}
@@ -1889,6 +1981,13 @@ function App() {
 	};
 
 	const isCalendarMode = willowMode === "calendar";
+	const isAttachedPanel = willowMode === "calendar" || willowMode === "weather";
+	const formatWeatherClock = (value: string) => {
+		if (!value) return "--:--";
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return "--:--";
+		return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+	};
 
 	// Close compact media player expansions when notch is unhovered or mode changes
 	useEffect(() => {
@@ -1985,8 +2084,8 @@ function App() {
 						scaleY: 1,
 						borderTopLeftRadius: isImpacted ? 0 : 18,
 						borderTopRightRadius: isImpacted ? 0 : 18,
-						borderBottomLeftRadius: isCalendarMode ? 28 : 18,
-						borderBottomRightRadius: isCalendarMode ? 28 : 18,
+						borderBottomLeftRadius: isAttachedPanel ? 28 : 18,
+						borderBottomRightRadius: isAttachedPanel ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
@@ -2078,6 +2177,9 @@ function App() {
 												>
 													<TrayIcon />
 												</button>
+											</div>
+											<div className="music-status-strip" aria-label="Indicadores do sistema">
+												{[...statusWidgets.left, ...statusWidgets.right].map(renderStatusWidget)}
 											</div>
 											{mediaLayout === "compact" ? (
 												<CompactMediaPlayer
@@ -2381,7 +2483,7 @@ function App() {
 																			<VolumeLowIcon size={11} />
 																		</button>
 																	)}
-																	{isMusicMode && settingsVisualizerEnabled ? (
+																	{isMusicMode && settingsVisualizerEnabled && (
 																		<AnimatePresence>
 																			<motion.div
 																				key="visualizer"
@@ -2392,11 +2494,8 @@ function App() {
 																				<Visualizer isPlaying={isPlaying} />
 																			</motion.div>
 																		</AnimatePresence>
-																	) : (
-																		willowMode === "status" &&
-																		isHovered &&
-																		statusWidgets.left.map(renderStatusWidget)
 																	)}
+																	{statusWidgets.left.map(renderStatusWidget)}
 																</div>
 															</div>
 
@@ -2439,6 +2538,31 @@ function App() {
 																{updateAvailable && showUpdateIndicator && (
 																	<div className="update-dot" />
 																)}
+																<AnimatePresence>
+																	{privacyActive && (
+																		<motion.div
+																			className="privacy-indicators"
+																			initial={{ opacity: 0, scale: 0.4, x: -4 }}
+																			animate={{ opacity: 1, scale: 1, x: 0 }}
+																			exit={{ opacity: 0, scale: 0.4, x: -4 }}
+																			transition={{ type: "spring", stiffness: 520, damping: 28 }}
+																			title={
+																				privacyState.microphone && privacyState.camera
+																					? "Microfone e câmera em uso"
+																					: privacyState.camera
+																						? "Câmera em uso"
+																						: "Microfone em uso"
+																			}
+																		>
+																			{privacyState.microphone && (
+																				<span className="privacy-dot microphone" />
+																			)}
+																			{privacyState.camera && (
+																				<span className="privacy-dot camera" />
+																			)}
+																		</motion.div>
+																	)}
+																</AnimatePresence>
 															</div>
 
 															{/* Right: album art (music) or battery (command-center, calendar) */}
@@ -2524,10 +2648,7 @@ function App() {
 																			</motion.div>
 																		</AnimatePresence>
 																	)}
-																	{!isMusicMode &&
-																		willowMode === "status" &&
-																		isHovered &&
-																		statusWidgets.right.map(renderStatusWidget)}
+																	{statusWidgets.right.map(renderStatusWidget)}
 																	{isHovered && (
 																		<button
 																			className={`notch-control-orb ${willowMode === "tray" ? "active" : ""}`}
@@ -2780,40 +2901,178 @@ function App() {
 										>
 											<div className="tray-apps-head">
 												<div>
-													<strong>Aplicativos</strong>
-													<span>
-														{isTauriRuntime ? "Ativos neste computador" : "Prévia do navegador"}
-													</span>
+													<strong>Central de aplicativos</strong>
+													<span>Abra uma janela ativa ou pesquise qualquer aplicativo</span>
 												</div>
-												{isTauriRuntime && (
-													<button onClick={openSystemTray}>Ver bandeja completa</button>
-												)}
 											</div>
 
+											<label className="tray-apps-search">
+												<Search size={12} />
+												<input
+													type="search"
+													value={traySearch}
+													onChange={(event) => setTraySearch(event.target.value)}
+													placeholder="Pesquisar aplicativos..."
+													onClick={(event) => event.stopPropagation()}
+												/>
+											</label>
+
+											<div className="tray-apps-section-title">
+												{traySearch.trim() ? "Resultados" : "Janelas abertas"}
+											</div>
 											<div className="tray-apps-grid">
 												{trayAppsLoading ? (
 													<div className="tray-apps-message">Carregando aplicativos...</div>
-												) : trayApps.length ? (
-													trayApps.map((app) => (
+												) : visibleTrayApps.length ? (
+													visibleTrayApps.map((app) => (
 														<button
 															key={`${app.path}-${app.hwnd || app.name}`}
 															aria-label={app.name}
 															onClick={(event) => openTrayApp(event, app)}
 														>
-															{app.icon ? (
-																<img src={app.icon} alt="" />
+															{app.icon || trayIcons[app.path] ? (
+																<img src={app.icon || trayIcons[app.path]} alt="" />
 															) : (
 																<span>{app.name.slice(0, 1).toUpperCase()}</span>
 															)}
 															<i>{app.name}</i>
+															{!traySearch.trim() && <b className="tray-app-running-dot" />}
 														</button>
 													))
 												) : (
 													<div className="tray-apps-message">
-														Nenhum aplicativo ativo encontrado.
+														{traySearch.trim()
+															? "Nenhum aplicativo encontrado."
+															: "Nenhuma janela aberta encontrada."}
 													</div>
 												)}
 											</div>
+
+											<div className="tray-quick-actions">
+												<button type="button" onClick={openSystemTray}>
+													<TrayIcon />
+													<span>Bandeja do Windows</span>
+												</button>
+												<button
+													type="button"
+													onClick={(event) => {
+														event.stopPropagation();
+														invoke("open_notification_center");
+													}}
+												>
+													<BellIcon />
+													<span>Notificações</span>
+												</button>
+												<button
+													type="button"
+													onClick={(event) => {
+														event.stopPropagation();
+														openSettingsWindow();
+													}}
+												>
+													<SettingsIcon />
+													<span>Configurações</span>
+												</button>
+											</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Clima detalhado */}
+								<AnimatePresence>
+									{willowMode === "weather" && settingsWeatherEnabled && (
+										<motion.div
+											className="weather-details-content"
+											onClick={(event) => event.stopPropagation()}
+											initial={{ opacity: 0, y: -8, filter: "blur(5px)" }}
+											animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+											exit={{ opacity: 0, y: -5, filter: "blur(5px)" }}
+											transition={{ type: "spring", stiffness: 420, damping: 32 }}
+										>
+											<div className="weather-details-header">
+												<div className="weather-current-icon">
+													<WeatherIcon size={34} strokeWidth={1.7} />
+												</div>
+												<div className="weather-current-copy">
+													<div className="weather-location">
+														<MapPin size={10} />
+														<span>{cityName || "Localização atual"}</span>
+													</div>
+													<strong>
+														{temperature ?? "--"}°
+														<small>{tempUnit === "fahrenheit" ? "F" : "C"}</small>
+													</strong>
+													<span>{weatherCondition || "Atualizando clima"}</span>
+												</div>
+												<button
+													type="button"
+													className={`weather-refresh-button ${isWeatherRefreshing ? "refreshing" : ""}`}
+													onClick={() => refreshWeather()}
+													title="Atualizar clima"
+												>
+													<RefreshCw size={13} />
+												</button>
+											</div>
+
+											{weatherDetails ? (
+												<>
+													<div className="weather-metrics-grid">
+														<div>
+															<Thermometer size={13} />
+															<span>Sensação</span>
+															<strong>{weatherDetails.apparentTemperature}°</strong>
+														</div>
+														<div>
+															<Droplets size={13} />
+															<span>Umidade</span>
+															<strong>{weatherDetails.humidity}%</strong>
+														</div>
+														<div>
+															<Wind size={13} />
+															<span>Vento</span>
+															<strong>{weatherDetails.windSpeed} km/h</strong>
+														</div>
+														<div>
+															<Umbrella size={13} />
+															<span>Chuva</span>
+															<strong>{weatherDetails.precipitation}%</strong>
+														</div>
+													</div>
+
+													<div className="weather-sun-times">
+														<span>
+															<Sunrise size={12} /> Nascer{" "}
+															{formatWeatherClock(weatherDetails.sunrise)}
+														</span>
+														<span>
+															<Sunset size={12} /> Pôr {formatWeatherClock(weatherDetails.sunset)}
+														</span>
+													</div>
+
+													<div className="weather-forecast-row">
+														{weatherDetails.forecast.map((day, index) => {
+															const ForecastIcon = day.icon;
+															const label =
+																index === 0
+																	? "Hoje"
+																	: new Intl.DateTimeFormat("pt-BR", { weekday: "short" })
+																			.format(new Date(`${day.date}T12:00:00`))
+																			.replace(".", "");
+															return (
+																<div key={day.date} title={day.condition}>
+																	<span>{label}</span>
+																	<ForecastIcon size={15} strokeWidth={1.8} />
+																	<strong>
+																		{day.maximum}° <small>{day.minimum}°</small>
+																	</strong>
+																</div>
+															);
+														})}
+													</div>
+												</>
+											) : (
+												<div className="weather-details-loading">Consultando previsão...</div>
+											)}
 										</motion.div>
 									)}
 								</AnimatePresence>

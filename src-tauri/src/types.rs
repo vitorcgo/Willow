@@ -70,6 +70,12 @@ pub struct DockSystemItem {
     pub kind: String,
 }
 
+#[derive(Clone, Serialize, PartialEq, Eq)]
+pub struct PrivacyStateEvent {
+    pub microphone: bool,
+    pub camera: bool,
+}
+
 #[derive(Clone, Serialize)]
 pub struct BrightnessChangeEvent {
     pub brightness: u32,

@@ -87,7 +87,7 @@ const Dock = memo(function Dock() {
 		() => localStorage.getItem("willow-dock-adaptive") === "true"
 	);
 	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
-		() => localStorage.getItem("willow-dock-system-section-enabled") !== "false"
+		() => localStorage.getItem("willow-dock-system-section-enabled") === "true"
 	);
 	const [dockSystemSectionSide, setDockSystemSectionSide] = useState(() =>
 		localStorage.getItem("willow-dock-system-section-side") === "left" ? "left" : "right"
@@ -278,7 +278,7 @@ const Dock = memo(function Dock() {
 			const adaptive = getVal("willow-dock-adaptive", "false");
 			setDockAdaptive(adaptive === "true");
 
-			setDockSystemSectionEnabled(getVal("willow-dock-system-section-enabled", "true") === "true");
+			setDockSystemSectionEnabled(getVal("willow-dock-system-section-enabled", "false") === "true");
 			setDockSystemSectionSide(
 				getVal("willow-dock-system-section-side", "right") === "left" ? "left" : "right"
 			);

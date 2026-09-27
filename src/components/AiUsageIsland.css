@@ -25,6 +25,8 @@
 	width: 70px;
 	padding: 18px 0;
 	background: var(--willow-bg-expanded, rgba(5, 6, 7, 0.96));
+	backdrop-filter: var(--willow-backdrop-filter, blur(24px));
+	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(24px));
 	border: 1px solid var(--willow-border, #30343a);
 	border-right: 0;
 	border-radius: 20px 0 0 20px;
@@ -167,6 +169,8 @@
 	border: 1px solid var(--willow-border, #252a30);
 	border-radius: 16px;
 	background: var(--willow-bg-expanded, rgba(8, 10, 12, 0.98));
+	backdrop-filter: var(--willow-backdrop-filter, blur(24px));
+	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(24px));
 	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
 	opacity: 0;
 	visibility: hidden;
