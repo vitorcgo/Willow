@@ -1920,6 +1920,90 @@ fn set_physical_monitors_brightness(brightness: u32) -> bool {
     }
 }
 
+pub fn has_controllable_brightness() -> bool {
+    if let Ok(com) = COMLibrary::new() {
+        if let Ok(connection) = WMIConnection::with_namespace_path("root\\WMI", com) {
+            if connection
+                .query::<WmiMonitorBrightness>()
+                .is_ok_and(|monitors| !monitors.is_empty())
+            {
+                return true;
+            }
+        }
+    }
+
+    unsafe {
+        use windows::core::BOOL;
+        use windows::Win32::Foundation::{LPARAM, RECT};
+        use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
+
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct PhysicalMonitor {
+            handle: usize,
+            description: [u16; 128],
+        }
+        struct DetectionContext {
+            supported: bool,
+        }
+        #[link(name = "dxva2")]
+        extern "system" {
+            fn GetNumberOfPhysicalMonitorsFromHMONITOR(monitor: HMONITOR, count: *mut u32) -> BOOL;
+            fn GetPhysicalMonitorsFromHMONITOR(
+                monitor: HMONITOR,
+                count: u32,
+                physical: *mut PhysicalMonitor,
+            ) -> BOOL;
+            fn DestroyPhysicalMonitors(count: u32, physical: *mut PhysicalMonitor) -> BOOL;
+            fn GetMonitorBrightness(
+                monitor: usize,
+                minimum: *mut u32,
+                current: *mut u32,
+                maximum: *mut u32,
+            ) -> BOOL;
+        }
+        unsafe extern "system" fn detect(
+            monitor: HMONITOR,
+            _: HDC,
+            _: *mut RECT,
+            data: LPARAM,
+        ) -> BOOL {
+            let context = &mut *(data.0 as *mut DetectionContext);
+            let mut count = 0;
+            if GetNumberOfPhysicalMonitorsFromHMONITOR(monitor, &mut count).as_bool() && count > 0 {
+                let mut physical = vec![std::mem::zeroed::<PhysicalMonitor>(); count as usize];
+                if GetPhysicalMonitorsFromHMONITOR(monitor, count, physical.as_mut_ptr()).as_bool()
+                {
+                    for item in &physical {
+                        let (mut minimum, mut current, mut maximum) = (0, 0, 0);
+                        if item.handle != 0
+                            && GetMonitorBrightness(
+                                item.handle,
+                                &mut minimum,
+                                &mut current,
+                                &mut maximum,
+                            )
+                            .as_bool()
+                        {
+                            context.supported = true;
+                        }
+                    }
+                    let _ = DestroyPhysicalMonitors(count, physical.as_mut_ptr());
+                }
+            }
+            (!context.supported).into()
+        }
+        let mut context = DetectionContext { supported: false };
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(detect),
+            LPARAM(&mut context as *mut DetectionContext as isize),
+        );
+        context.supported
+    }
+}
+
 pub fn setup_brightness_worker() {
     let (tx, rx) = channel::<u32>();
     let _ = BRIGHTNESS_SENDER.set(tx);

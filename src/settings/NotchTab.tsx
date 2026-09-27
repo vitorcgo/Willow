@@ -18,6 +18,7 @@ import { SettingRow } from "./SettingRow";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 import type { WeatherCityResult } from "./useSettings";
+import type { DeviceCapabilities } from "../deviceCapabilities";
 
 interface NotchTabProps {
 	notchMode: string;
@@ -59,6 +60,7 @@ interface NotchTabProps {
 	handleCityClear: () => void;
 	statusWidgets: WidgetConfig;
 	handleWidgetsChange: (config: WidgetConfig) => void;
+	deviceCapabilities: DeviceCapabilities;
 }
 
 export function NotchTab({
@@ -100,7 +102,8 @@ export function NotchTab({
 	selectCity,
 	handleCityClear,
 	statusWidgets,
-	handleWidgetsChange
+	handleWidgetsChange,
+	deviceCapabilities
 }: NotchTabProps) {
 	return (
 		<>
@@ -391,7 +394,11 @@ export function NotchTab({
 
 			<div className="setting-group-label">INDICADORES</div>
 			<div className="setting-group">
-				<StatusWidgetConfig value={statusWidgets} onChange={handleWidgetsChange} />
+				<StatusWidgetConfig
+					value={statusWidgets}
+					onChange={handleWidgetsChange}
+					unavailableIds={deviceCapabilities.hasBattery ? [] : ["battery"]}
+				/>
 			</div>
 		</>
 	);

@@ -43,8 +43,20 @@ import {
 	RefreshCw,
 	Search,
 	Thermometer,
-	ArrowLeft
+	ArrowLeft,
+	BookOpenCheck,
+	MoonStar,
+	StickyNote
 } from "lucide-react";
+import { DEFAULT_DEVICE_CAPABILITIES, type DeviceCapabilities } from "./deviceCapabilities";
+
+interface JournalSummary {
+	completedHabits: number;
+	totalHabits: number;
+	hasDiary: boolean;
+	sleepHours: number;
+	noteCount: number;
+}
 
 // Pomodoro timer limit.
 const MAX_TIMER_SECONDS = 180 * 60;
@@ -463,6 +475,10 @@ function App() {
 	const [timeFormat24h, setTimeFormat24h] = useState(
 		() => localStorage.getItem("willow-time-format-24h") === "true"
 	);
+	const [deviceCapabilities, setDeviceCapabilities] = useState<DeviceCapabilities>(
+		DEFAULT_DEVICE_CAPABILITIES
+	);
+	const [journalSummary, setJournalSummary] = useState<JournalSummary | null>(null);
 
 	const [batteryLevel, setBatteryLevel] = useState(100);
 	const [isCharging, setIsCharging] = useState(false);
@@ -491,7 +507,27 @@ function App() {
 	});
 
 	useEffect(() => {
-		if (isReady && prevChargingRef.current !== null && prevChargingRef.current !== isCharging) {
+		invoke<DeviceCapabilities>("get_device_capabilities")
+			.then(setDeviceCapabilities)
+			.catch(() => {});
+		invoke<JournalSummary>("journal_get_today_summary")
+			.then(setJournalSummary)
+			.catch(() => {});
+		const summaryListener = listen<JournalSummary>("journal-summary-changed", (event) =>
+			setJournalSummary(event.payload)
+		);
+		return () => {
+			summaryListener.then((remove) => remove());
+		};
+	}, []);
+
+	useEffect(() => {
+		if (
+			deviceCapabilities.hasBattery &&
+			isReady &&
+			prevChargingRef.current !== null &&
+			prevChargingRef.current !== isCharging
+		) {
 			setShowPowerPulse(true);
 			if (notchMode === "peek") triggerEventPeek(4000);
 			if (powerPulseTimeoutRef.current) clearTimeout(powerPulseTimeoutRef.current);
@@ -500,11 +536,12 @@ function App() {
 			}, 4000);
 		}
 		prevChargingRef.current = isCharging;
-	}, [isCharging, isReady, notchMode, triggerEventPeek]);
+	}, [isCharging, isReady, notchMode, triggerEventPeek, deviceCapabilities.hasBattery]);
 
 	useEffect(() => {
 		// Trigger pulse when dropping below threshold while discharging
 		if (
+			deviceCapabilities.hasBattery &&
 			isReady &&
 			batteryLevel <= lowBatteryThreshold &&
 			!isCharging &&
@@ -520,7 +557,15 @@ function App() {
 		if (isCharging || batteryLevel > lowBatteryThreshold) {
 			lowBatteryPulseShownRef.current = false;
 		}
-	}, [batteryLevel, isCharging, lowBatteryThreshold, isReady, notchMode, triggerEventPeek]);
+	}, [
+		batteryLevel,
+		isCharging,
+		lowBatteryThreshold,
+		isReady,
+		notchMode,
+		triggerEventPeek,
+		deviceCapabilities.hasBattery
+	]);
 
 	// Weather state (managed by useWeather hook)
 
@@ -1089,7 +1134,14 @@ function App() {
 		invoke("change_notch_mode", { mode: notchMode });
 	}, [notchMode, windowLabel]);
 
-	type WillowMode = "music" | "calendar" | "command-center" | "tray" | "weather" | "status";
+	type WillowMode =
+		| "music"
+		| "calendar"
+		| "command-center"
+		| "tray"
+		| "weather"
+		| "journal"
+		| "status";
 	const [willowMode, setWillowMode] = useState<WillowMode>("status");
 	const changeMediaLayout = useCallback((layout: "classic" | "compact") => {
 		setMediaLayout(layout);
@@ -1157,6 +1209,28 @@ function App() {
 		setIsHovered(true);
 		setWillowMode((current) => (current === "weather" ? "status" : "weather"));
 	};
+	const toggleJournalPanel = (event: React.MouseEvent) => {
+		event.stopPropagation();
+		setIsHovered(true);
+		setWillowMode((current) => (current === "journal" ? "status" : "journal"));
+	};
+
+	useEffect(() => {
+		let closeTimer = 0;
+		const listener = listen("journal-activity", () => {
+			window.clearTimeout(closeTimer);
+			setIsHovered(true);
+			setWillowMode("journal");
+			closeTimer = window.setTimeout(() => {
+				setWillowMode((current) => (current === "journal" ? "status" : current));
+				setIsHovered(false);
+			}, 1800);
+		});
+		return () => {
+			listener.then((remove) => remove());
+			window.clearTimeout(closeTimer);
+		};
+	}, []);
 	const closeExpandedMusic = (event: React.MouseEvent) => {
 		event.stopPropagation();
 		manualMusicRef.current = false;
@@ -1184,8 +1258,8 @@ function App() {
 		// Music shifts position based on playing state.
 		const musicBeforeStatus = isPlaying && mediaInfo.has_media && settingsMusicModeEnabled;
 		const modes: WillowMode[] = musicBeforeStatus
-			? ["command-center", "tray", "music", "status", "weather", "calendar"]
-			: ["command-center", "tray", "status", "weather", "music", "calendar"];
+			? ["command-center", "tray", "music", "status", "journal", "weather", "calendar"]
+			: ["command-center", "tray", "status", "journal", "weather", "music", "calendar"];
 		const availableModes = modes.filter((m) => {
 			if (m === "music" && (!settingsMusicModeEnabled || !mediaInfo.has_media)) return false;
 			if (m === "calendar" && !settingsCalendarEnabled) return false;
@@ -1492,6 +1566,8 @@ function App() {
 	// Battery API
 	useEffect(() => {
 		let battery: any = null;
+		let cleanup: (() => void) | undefined;
+		if (!deviceCapabilities.hasBattery) return;
 
 		const initBattery = async () => {
 			try {
@@ -1507,7 +1583,7 @@ function App() {
 				battery.addEventListener("levelchange", updateBattery);
 				battery.addEventListener("chargingchange", updateBattery);
 
-				return () => {
+				cleanup = () => {
 					battery.removeEventListener("levelchange", updateBattery);
 					battery.removeEventListener("chargingchange", updateBattery);
 				};
@@ -1517,7 +1593,8 @@ function App() {
 		};
 
 		initBattery();
-	}, []);
+		return () => cleanup?.();
+	}, [deviceCapabilities.hasBattery]);
 
 	// Listen for Volume Changes
 	useEffect(() => {
@@ -1537,24 +1614,32 @@ function App() {
 		invoke<boolean>("get_bluetooth_state")
 			.then(setBluetoothEnabled)
 			.catch(() => {});
-		invoke<boolean>("get_battery_saver_state")
-			.then(setBatterySaverEnabled)
-			.catch(() => {});
-		invoke<number>("get_volume")
-			.then(setVolume)
-			.catch(() => {});
-		invoke<number>("get_brightness")
-			.then(setCurrentBrightness)
-			.catch(() => {});
-
-		// Poll battery saver state every 5s (since we can't listen for changes)
-		const interval = setInterval(() => {
+		if (deviceCapabilities.hasBattery) {
 			invoke<boolean>("get_battery_saver_state")
 				.then(setBatterySaverEnabled)
 				.catch(() => {});
-		}, 5000);
-		return () => clearInterval(interval);
-	}, []);
+		}
+		invoke<number>("get_volume")
+			.then(setVolume)
+			.catch(() => {});
+		if (deviceCapabilities.hasBrightness) {
+			invoke<number>("get_brightness")
+				.then(setCurrentBrightness)
+				.catch(() => {});
+		}
+
+		// Poll battery saver state every 5s (since we can't listen for changes)
+		const interval = deviceCapabilities.hasBattery
+			? setInterval(() => {
+					invoke<boolean>("get_battery_saver_state")
+						.then(setBatterySaverEnabled)
+						.catch(() => {});
+				}, 5000)
+			: 0;
+		return () => {
+			if (interval) clearInterval(interval);
+		};
+	}, [deviceCapabilities.hasBattery, deviceCapabilities.hasBrightness]);
 
 	// Poll system metrics for status widgets
 	useEffect(() => {
@@ -1889,6 +1974,7 @@ function App() {
 					</button>
 				);
 			case "battery":
+				if (!deviceCapabilities.hasBattery) return null;
 				return (
 					<div className="passive-feature" key="battery">
 						<BatteryIcon
@@ -1929,6 +2015,23 @@ function App() {
 						</span>
 					</div>
 				);
+			case "journal":
+				return (
+					<button
+						type="button"
+						className="passive-feature weather-feature-button"
+						key="journal"
+						title="Abrir resumo do Willow Journal"
+						onClick={toggleJournalPanel}
+					>
+						<BookOpenCheck size={12} strokeWidth={2.2} />
+						<span className="label">
+							{journalSummary
+								? `${journalSummary.completedHabits}/${journalSummary.totalHabits}`
+								: "Journal"}
+						</span>
+					</button>
+				);
 			default:
 				return null;
 		}
@@ -1945,9 +2048,12 @@ function App() {
 
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
-		const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
+		const totalWidgets = [...statusWidgets.left, ...statusWidgets.right].filter(
+			(id) => id !== "battery" || deviceCapabilities.hasBattery
+		).length;
 		if (isCalendarMode) return 480;
 		if (willowMode === "weather" && isHovered) return 480;
+		if (willowMode === "journal" && isHovered) return 390;
 		if (willowMode === "command-center" && isHovered) return Math.min(350 + totalWidgets * 36, 540);
 		if (willowMode === "tray" && isHovered) return Math.min(390 + totalWidgets * 28, 540);
 		if (willowMode === "status" && isHovered) {
@@ -1977,6 +2083,7 @@ function App() {
 		// Sized to the calendar's week-row count plus the timer's fixed content.
 		if (willowMode === "calendar") return calendarMonthRows >= 6 ? 305 : 273;
 		if (willowMode === "weather") return isHovered ? 258 : 36;
+		if (willowMode === "journal") return isHovered ? 184 : 36;
 		if (willowMode === "command-center") return isHovered ? 230 : 36;
 		if (willowMode === "tray") return isHovered ? 286 : 36;
 		if (willowMode === "status") return 36;
@@ -2782,16 +2889,18 @@ function App() {
 												>
 													<MoonIcon />
 												</button>
-												<button
-													className={`cc-circular-btn ${batterySaverEnabled ? "active" : ""}`}
-													onClick={(e) => {
-														e.stopPropagation();
-														openBatterySaverSettings();
-													}}
-													title={`Economia de energia: ${batterySaverEnabled ? "Ligada" : "Desligada"}. Clique para abrir as configurações`}
-												>
-													<BatterySaverIcon />
-												</button>
+												{deviceCapabilities.hasBattery && (
+													<button
+														className={`cc-circular-btn ${batterySaverEnabled ? "active" : ""}`}
+														onClick={(e) => {
+															e.stopPropagation();
+															openBatterySaverSettings();
+														}}
+														title={`Economia de energia: ${batterySaverEnabled ? "Ligada" : "Desligada"}. Clique para abrir as configurações`}
+													>
+														<BatterySaverIcon />
+													</button>
+												)}
 												<button
 													className="cc-circular-btn"
 													onClick={(e) => {
@@ -2863,30 +2972,84 @@ function App() {
 												</div>
 
 												{/* Brightness Slider */}
-												<div className="cc-classic-slider-row">
-													<div className="cc-classic-slider-label">
-														<BrightnessLowIcon />
-														<span>Brilho</span>
+												{deviceCapabilities.hasBrightness && (
+													<div className="cc-classic-slider-row">
+														<div className="cc-classic-slider-label">
+															<BrightnessLowIcon />
+															<span>Brilho</span>
+														</div>
+														<div className="cc-classic-slider-track">
+															<input
+																type="range"
+																min="0"
+																max="100"
+																step="1"
+																value={currentBrightness}
+																onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
+																onPointerDown={(e) => e.stopPropagation()}
+																onClick={(e) => e.stopPropagation()}
+																className="cc-classic-input"
+															/>
+															<div
+																className="cc-classic-fill"
+																style={{ width: `${currentBrightness}%` }}
+															/>
+														</div>
+														<span className="cc-classic-percentage">{currentBrightness}%</span>
 													</div>
-													<div className="cc-classic-slider-track">
-														<input
-															type="range"
-															min="0"
-															max="100"
-															step="1"
-															value={currentBrightness}
-															onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
-															onPointerDown={(e) => e.stopPropagation()}
-															onClick={(e) => e.stopPropagation()}
-															className="cc-classic-input"
-														/>
-														<div
-															className="cc-classic-fill"
-															style={{ width: `${currentBrightness}%` }}
-														/>
-													</div>
-													<span className="cc-classic-percentage">{currentBrightness}%</span>
+												)}
+											</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Willow Journal summary */}
+								<AnimatePresence>
+									{willowMode === "journal" && (
+										<motion.div
+											className="journal-island-content"
+											onClick={(event) => event.stopPropagation()}
+											initial={{ opacity: 0, y: -8, scale: 0.97 }}
+											animate={{ opacity: 1, y: 0, scale: 1 }}
+											exit={{ opacity: 0, y: -6, scale: 0.97 }}
+											transition={{ type: "spring", stiffness: 430, damping: 32 }}
+										>
+											<div className="journal-island-head">
+												<span className="journal-island-logo">
+													<BookOpenCheck size={19} />
+												</span>
+												<div>
+													<strong>Willow Journal</strong>
+													<span>Resumo de hoje</span>
 												</div>
+												<button onClick={() => invoke("open_journal_window")}>Abrir</button>
+											</div>
+											<div className="journal-island-stats">
+												<div>
+													<BookOpenCheck size={15} />
+													<strong>
+														{journalSummary?.completedHabits || 0}/
+														{journalSummary?.totalHabits || 0}
+													</strong>
+													<span>hábitos</span>
+												</div>
+												<div>
+													<MoonStar size={15} />
+													<strong>{(journalSummary?.sleepHours || 0).toFixed(1)}h</strong>
+													<span>sono</span>
+												</div>
+												<div>
+													<StickyNote size={15} />
+													<strong>{journalSummary?.noteCount || 0}</strong>
+													<span>notas</span>
+												</div>
+											</div>
+											<div className="journal-island-progress">
+												<i
+													style={{
+														width: `${journalSummary?.totalHabits ? (journalSummary.completedHabits / journalSummary.totalHabits) * 100 : 0}%`
+													}}
+												/>
 											</div>
 										</motion.div>
 									)}

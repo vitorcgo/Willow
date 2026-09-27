@@ -82,6 +82,14 @@ pub struct BrightnessChangeEvent {
 }
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCapabilities {
+    pub has_battery: bool,
+    pub has_brightness: bool,
+    pub is_portable: bool,
+}
+
+#[derive(Clone, Serialize)]
 pub struct VolumeChangeEvent {
     pub volume: f32,
     pub is_muted: bool,

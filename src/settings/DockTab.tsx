@@ -10,8 +10,10 @@ import {
 	FileText,
 	Images,
 	Trash2,
-	MoveHorizontal
+	MoveHorizontal,
+	BookOpenText
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import type { ComponentType } from "react";
 import { SettingRow } from "./SettingRow";
 
@@ -28,6 +30,8 @@ interface DockTabProps {
 	toggleDockAdaptive: () => void;
 	dockWinNumberEnabled: boolean;
 	toggleDockWinNumber: () => void;
+	dockJournalEnabled: boolean;
+	toggleDockJournal: () => void;
 	dockSystemSectionEnabled: boolean;
 	toggleDockSystemSection: () => void;
 	dockSystemSectionSide: string;
@@ -53,6 +57,8 @@ export function DockTab({
 	toggleDockAdaptive,
 	dockWinNumberEnabled,
 	toggleDockWinNumber,
+	dockJournalEnabled,
+	toggleDockJournal,
 	dockSystemSectionEnabled,
 	toggleDockSystemSection,
 	dockSystemSectionSide,
@@ -118,6 +124,29 @@ export function DockTab({
 								<input type="checkbox" checked={dockIconOnly} onChange={toggleDockIconOnly} />
 								<span className="slider"></span>
 							</label>
+						</SettingRow>
+
+						<SettingRow
+							icon={BookOpenText}
+							label="Willow Journal"
+							desc="Mostra o atalho do diário local no dock"
+						>
+							<div className="setting-inline-actions">
+								<button
+									className="settings-small-button"
+									onClick={() => invoke("open_journal_window")}
+								>
+									Abrir
+								</button>
+								<label className="toggle-switch">
+									<input
+										type="checkbox"
+										checked={dockJournalEnabled}
+										onChange={toggleDockJournal}
+									/>
+									<span className="slider"></span>
+								</label>
+							</div>
 						</SettingRow>
 
 						<SettingRow

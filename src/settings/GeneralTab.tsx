@@ -1,5 +1,15 @@
-import { Power, Download, Clock, BatteryWarning, RefreshCw, LogOut } from "lucide-react";
+import {
+	Power,
+	Download,
+	Clock,
+	BatteryWarning,
+	RefreshCw,
+	LogOut,
+	Laptop,
+	Monitor
+} from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import type { DeviceCapabilities } from "../deviceCapabilities";
 
 interface GeneralTabProps {
 	autostart: boolean;
@@ -12,6 +22,7 @@ interface GeneralTabProps {
 	handleThresholdChange: (val: number) => void;
 	restartWillow: () => void;
 	quitWillow: () => void;
+	deviceCapabilities: DeviceCapabilities;
 }
 
 export function GeneralTab({
@@ -24,7 +35,8 @@ export function GeneralTab({
 	lowBatteryThreshold,
 	handleThresholdChange,
 	restartWillow,
-	quitWillow
+	quitWillow,
+	deviceCapabilities
 }: GeneralTabProps) {
 	return (
 		<>
@@ -37,16 +49,22 @@ export function GeneralTab({
 					</label>
 				</SettingRow>
 
-				<SettingRow
-					icon={Download}
-					label="Indicador de atualização"
-					desc="Mostra um ponto na cor do tema quando houver atualização"
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={showUpdateIndicator} onChange={toggleUpdateIndicator} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+				{deviceCapabilities.hasBattery && (
+					<SettingRow
+						icon={Download}
+						label="Indicador de atualização"
+						desc="Mostra um ponto na cor do tema quando houver atualização"
+					>
+						<label className="toggle-switch">
+							<input
+								type="checkbox"
+								checked={showUpdateIndicator}
+								onChange={toggleUpdateIndicator}
+							/>
+							<span className="slider"></span>
+						</label>
+					</SettingRow>
+				)}
 
 				<SettingRow icon={Clock} label="Relógio de 24 horas" desc="Usa o formato de 24 horas">
 					<label className="toggle-switch">
@@ -54,6 +72,16 @@ export function GeneralTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+
+				<SettingRow
+					icon={deviceCapabilities.isPortable ? Laptop : Monitor}
+					label="Dispositivo detectado"
+					desc={
+						deviceCapabilities.isPortable
+							? "Notebook: bateria e recursos portáteis ativos"
+							: "Computador desktop: controles sem hardware são ocultados"
+					}
+				/>
 
 				<SettingRow
 					icon={BatteryWarning}

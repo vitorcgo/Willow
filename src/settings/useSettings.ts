@@ -7,6 +7,7 @@ import type { UpdateCheckResult } from "../updater";
 import { useSettingsSync } from "../hooks/useSettingsSync";
 import { hexToHsl } from "../theme";
 import type { WidgetConfig } from "./types";
+import { DEFAULT_DEVICE_CAPABILITIES, type DeviceCapabilities } from "../deviceCapabilities";
 
 export interface WeatherCityResult {
 	name: string;
@@ -60,6 +61,9 @@ function readBool(val: string | null): boolean {
 }
 
 export function useSettings() {
+	const [deviceCapabilities, setDeviceCapabilities] = useState<DeviceCapabilities>(
+		DEFAULT_DEVICE_CAPABILITIES
+	);
 	const [autostart, setAutostart] = useState(false);
 	const [weatherEnabled, setWeatherEnabled] = useState(true);
 	const [calendarEnabled, setCalendarEnabled] = useState(true);
@@ -117,6 +121,9 @@ export function useSettings() {
 	);
 	const [dockWinNumberEnabled, setDockWinNumberEnabled] = useState(
 		() => localStorage.getItem("willow-dock-win-number-enabled") !== "false"
+	);
+	const [dockJournalEnabled, setDockJournalEnabled] = useState(
+		() => localStorage.getItem("willow-dock-journal-enabled") !== "false"
 	);
 	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
 		() => localStorage.getItem("willow-dock-system-section-enabled") === "true"
@@ -238,6 +245,7 @@ export function useSettings() {
 			apply(getVal("willow-dock-icon-only"), setDockIconOnly, readBool);
 			apply(getVal("willow-dock-adaptive"), setDockAdaptive, readBool);
 			apply(getVal("willow-dock-win-number-enabled"), setDockWinNumberEnabled, readBool);
+			apply(getVal("willow-dock-journal-enabled"), setDockJournalEnabled, readBool);
 			apply(getVal("willow-dock-system-section-enabled"), setDockSystemSectionEnabled, readBool);
 			apply(getVal("willow-dock-system-section-side"), setDockSystemSectionSide, (value) =>
 				value === "left" ? "left" : "right"
@@ -299,6 +307,9 @@ export function useSettings() {
 	// ── Initialize on mount ──
 	useEffect(() => {
 		loadAllSettings();
+		invoke<DeviceCapabilities>("get_device_capabilities")
+			.then(setDeviceCapabilities)
+			.catch(() => {});
 
 		isEnabled()
 			.then(setAutostart)
@@ -329,6 +340,7 @@ export function useSettings() {
 		"willow-dock-preview-enabled": setDockPreviewEnabled,
 		"willow-dock-adaptive": setDockAdaptive,
 		"willow-dock-win-number-enabled": setDockWinNumberEnabled,
+		"willow-dock-journal-enabled": setDockJournalEnabled,
 		"willow-dock-system-section-enabled": setDockSystemSectionEnabled,
 		"willow-dock-system-section-side": (value) =>
 			setDockSystemSectionSide(String(value) === "left" ? "left" : "right"),
@@ -670,6 +682,12 @@ export function useSettings() {
 		saveSetting("willow-dock-win-number-enabled", String(next));
 	};
 
+	const toggleDockJournal = () => {
+		const next = !dockJournalEnabled;
+		setDockJournalEnabled(next);
+		saveSetting("willow-dock-journal-enabled", String(next));
+	};
+
 	const toggleDockSystemSection = () => {
 		const next = !dockSystemSectionEnabled;
 		setDockSystemSectionEnabled(next);
@@ -910,6 +928,7 @@ export function useSettings() {
 	};
 
 	return {
+		deviceCapabilities,
 		// System
 		autostart,
 		toggleAutostart,
@@ -1000,6 +1019,8 @@ export function useSettings() {
 		toggleDockAdaptive,
 		dockWinNumberEnabled,
 		toggleDockWinNumber,
+		dockJournalEnabled,
+		toggleDockJournal,
 		dockSystemSectionEnabled,
 		toggleDockSystemSection,
 		dockSystemSectionSide,

@@ -2,6 +2,7 @@
 
 mod ai_usage;
 mod commands;
+mod journal;
 mod services;
 mod state;
 mod types;
@@ -153,6 +154,7 @@ fn main() {
             restart_willow,
             get_volume,
             get_brightness,
+            get_device_capabilities,
             set_volume,
             save_setting,
             load_settings,
@@ -178,7 +180,12 @@ fn main() {
             write_settings_to_path,
             updater::check_for_updates,
             updater::install_update,
-            updater::get_update_state
+            updater::get_update_state,
+            journal::open_journal_window,
+            journal::close_journal_window,
+            journal::journal_load_month,
+            journal::journal_save_month,
+            journal::journal_get_today_summary
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());

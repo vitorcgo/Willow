@@ -1,9 +1,19 @@
-import { StrictMode, useState, useEffect } from "react";
+import { StrictMode, useState, useEffect, lazy, Suspense, Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Bot } from "lucide-react";
+import {
+	X,
+	Settings,
+	Palette,
+	PanelTop,
+	Monitor,
+	Layers,
+	Info,
+	Bot,
+	BookOpenCheck
+} from "lucide-react";
 import {
 	useSettings,
 	GeneralTab,
@@ -17,6 +27,36 @@ import {
 import type { SettingsTab } from "./settings/index";
 import { initTheme } from "./theme";
 import "./Settings.css";
+
+const Journal = lazy(() => import("./Journal"));
+
+class JournalErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+	state = { failed: false };
+
+	static getDerivedStateFromError() {
+		return { failed: true };
+	}
+
+	render() {
+		if (this.state.failed) {
+			return (
+				<div className="journal-loading-shell journal-load-error" data-tauri-drag-region>
+					<span className="journal-loading-mark">
+						<BookOpenCheck size={25} />
+					</span>
+					<div>
+						<strong>O Journal não conseguiu carregar</strong>
+						<span>Feche esta tela e tente novamente.</span>
+					</div>
+					<button onClick={() => invoke("close_journal_window")} title="Fechar">
+						×
+					</button>
+				</div>
+			);
+		}
+		return this.props.children;
+	}
+}
 
 const isTauriRuntime = "__TAURI_INTERNALS__" in window;
 const appWindow = isTauriRuntime ? getCurrentWebviewWindow() : null;
@@ -34,6 +74,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const [openingKey, setOpeningKey] = useState(0);
+	const [journalWorkspace, setJournalWorkspace] = useState(false);
 	const settings = useSettings();
 
 	useEffect(() => {
@@ -42,9 +83,14 @@ function SettingsApp() {
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;
-		const unlisten = listen("settings-opened", () => setOpeningKey((value) => value + 1));
+		const unlisten = listen("settings-opened", () => {
+			setJournalWorkspace(false);
+			setOpeningKey((value) => value + 1);
+		});
+		const unlistenJournal = listen("journal-opened", () => setJournalWorkspace(true));
 		return () => {
 			unlisten.then((remove) => remove());
+			unlistenJournal.then((remove) => remove());
 		};
 	}, []);
 
@@ -59,10 +105,10 @@ function SettingsApp() {
 
 	useEffect(() => {
 		invoke("resize_settings_window", {
-			width: 620 * settings.scale,
-			height: 480 * settings.scale
+			width: (journalWorkspace ? 1180 : 620) * settings.scale,
+			height: (journalWorkspace ? 760 : 480) * settings.scale
 		}).catch(console.error);
-	}, [settings.scale]);
+	}, [settings.scale, journalWorkspace]);
 
 	const handleClose = async (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -75,6 +121,28 @@ function SettingsApp() {
 			await appWindow.hide();
 		} catch {}
 	};
+
+	if (journalWorkspace) {
+		return (
+			<JournalErrorBoundary>
+				<Suspense
+					fallback={
+						<div className="journal-loading-shell" data-tauri-drag-region>
+							<span className="journal-loading-mark">
+								<BookOpenCheck size={25} />
+							</span>
+							<strong>Carregando Willow Journal…</strong>
+							<button onClick={() => invoke("close_journal_window")} title="Fechar">
+								×
+							</button>
+						</div>
+					}
+				>
+					<Journal />
+				</Suspense>
+			</JournalErrorBoundary>
+		);
+	}
 
 	return (
 		<div key={openingKey} className="settings-container" style={{ zoom: settings.scale }}>
@@ -116,6 +184,7 @@ function SettingsApp() {
 							handleThresholdChange={settings.handleThresholdChange}
 							restartWillow={settings.restartWillow}
 							quitWillow={settings.quitWillow}
+							deviceCapabilities={settings.deviceCapabilities}
 						/>
 					)}
 					{activeTab === "appearance" && (
@@ -179,6 +248,7 @@ function SettingsApp() {
 							handleCityClear={settings.handleCityClear}
 							statusWidgets={settings.statusWidgets}
 							handleWidgetsChange={settings.handleWidgetsChange}
+							deviceCapabilities={settings.deviceCapabilities}
 						/>
 					)}
 					{activeTab === "dock" && (
@@ -195,6 +265,8 @@ function SettingsApp() {
 							toggleDockAdaptive={settings.toggleDockAdaptive}
 							dockWinNumberEnabled={settings.dockWinNumberEnabled}
 							toggleDockWinNumber={settings.toggleDockWinNumber}
+							dockJournalEnabled={settings.dockJournalEnabled}
+							toggleDockJournal={settings.toggleDockJournal}
 							dockSystemSectionEnabled={settings.dockSystemSectionEnabled}
 							toggleDockSystemSection={settings.toggleDockSystemSection}
 							dockSystemSectionSide={settings.dockSystemSectionSide}
@@ -220,6 +292,7 @@ function SettingsApp() {
 							toggleBrightnessOverlay={settings.toggleBrightnessOverlay}
 							brightnessEdgeEnabled={settings.brightnessEdgeEnabled}
 							toggleBrightnessEdge={settings.toggleBrightnessEdge}
+							deviceCapabilities={settings.deviceCapabilities}
 						/>
 					)}
 					{activeTab === "about" && (

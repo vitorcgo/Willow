@@ -8,7 +8,7 @@ use crate::services::{
     unregister_appbar_native,
 };
 use crate::state::*;
-use crate::types::{AppInfo, BrightnessChangeEvent, DockSystemItem, IntRect};
+use crate::types::{AppInfo, BrightnessChangeEvent, DeviceCapabilities, DockSystemItem, IntRect};
 use crate::utils::*;
 use std::collections::HashMap;
 
@@ -2725,6 +2725,35 @@ pub fn get_volume() -> f32 {
 #[tauri::command]
 pub fn get_brightness() -> u32 {
     crate::state::CURRENT_BRIGHTNESS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[tauri::command]
+pub async fn get_device_capabilities() -> DeviceCapabilities {
+    static CAPABILITIES: std::sync::OnceLock<DeviceCapabilities> = std::sync::OnceLock::new();
+    if let Some(capabilities) = CAPABILITIES.get() {
+        return capabilities.clone();
+    }
+    tauri::async_runtime::spawn_blocking(|| {
+        let has_battery = unsafe {
+            use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
+            let mut status = SYSTEM_POWER_STATUS::default();
+            GetSystemPowerStatus(&mut status).is_ok() && status.BatteryFlag != 128
+        };
+        let has_brightness = crate::services::has_controllable_brightness();
+        let capabilities = DeviceCapabilities {
+            has_battery,
+            has_brightness,
+            is_portable: has_battery,
+        };
+        let _ = CAPABILITIES.set(capabilities.clone());
+        capabilities
+    })
+    .await
+    .unwrap_or(DeviceCapabilities {
+        has_battery: false,
+        has_brightness: false,
+        is_portable: false,
+    })
 }
 
 #[tauri::command]

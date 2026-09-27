@@ -68,7 +68,15 @@ Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock pers
 
 • Seção separada no dock para unidades conectadas, Downloads, Documentos, Imagens e Lixeira
 
+• Willow Journal mensal com calendário, diário, semana, gráfico de sono e controle de hábitos
+
+• Banco SQLite local com salvamento automático, desfazer, refazer e exportação por impressão
+
+• Resumo do Journal integrado à ilha e progresso diário no ícone opcional do dock
+
 • Clima, bateria, CPU, memória, disco e rede
+
+• Detecção de notebook ou desktop por recursos reais, ocultando bateria e brilho indisponíveis
 
 • Tema escuro, claro, personalizado e adaptável
 
@@ -78,7 +86,7 @@ Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock pers
 
 ## Privacidade
 
-Willow lê somente os arquivos locais de sessão necessários para consultar os limites das contas já conectadas. Tokens não são enviados para a interface, não aparecem em logs e não são gravados novamente. Cada credencial é usada apenas com o serviço que a criou.
+Willow lê somente os arquivos locais de sessão necessários para consultar os limites das contas já conectadas. Tokens não são enviados para a interface, não aparecem em logs e não são gravados novamente. Cada credencial é usada apenas com o serviço que a criou. O Willow Journal fica no banco `willow-journal.sqlite3` da pasta de dados locais do aplicativo e não é enviado para serviços externos.
 
 ## Requisitos
 
@@ -132,6 +140,7 @@ src/
 src-tauri/
   src/ai_usage.rs   leitura segura dos limites de IA
   src/commands.rs   comandos enviados pela interface
+  src/journal.rs    banco SQLite e janela do Willow Journal
   src/services.rs   integrações de longa duração com o Windows
   src/utils.rs      armazenamento e utilitários
   icons/            ícones do executável e do instalador
@@ -162,7 +171,7 @@ O Willow consulta a versão mais recente publicada em [GitHub Releases](https://
 Para publicar uma atualização para todos os computadores:
 
 1. Finalize e envie as mudanças para a branch `main`.
-2. Execute `bun run release 0.1.6`, substituindo `0.1.6` pela nova versão.
+2. Execute `bun run release X.Y.Z`, substituindo `X.Y.Z` pela nova versão.
 3. O script atualiza os arquivos de versão, cria a tag e a envia ao GitHub.
 4. O workflow `Release` compila o instalador e publica a nova versão.
 

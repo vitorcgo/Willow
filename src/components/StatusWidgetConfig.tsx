@@ -28,7 +28,8 @@ import {
 	X,
 	ArrowLeftRight,
 	ChevronUp,
-	ChevronDown
+	ChevronDown,
+	BookOpenCheck
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
@@ -50,7 +51,8 @@ const WIDGET_DEFS: WidgetDef[] = [
 	{ id: "cpu", label: "CPU", icon: Cpu, color: "#f97316" },
 	{ id: "ram", label: "RAM", icon: MemoryStick, color: "#a78bfa" },
 	{ id: "disk", label: "Disco", icon: HardDrive, color: "#38bdf8" },
-	{ id: "net", label: "Rede", icon: ArrowUpDown, color: "#2dd4bf" }
+	{ id: "net", label: "Rede", icon: ArrowUpDown, color: "#2dd4bf" },
+	{ id: "journal", label: "Journal", icon: BookOpenCheck, color: "#58bfff" }
 ];
 
 const DEFAULT_CONFIG: WidgetConfig = {
@@ -194,9 +196,14 @@ function DropZone({
 interface StatusWidgetConfigProps {
 	value: WidgetConfig;
 	onChange: (config: WidgetConfig) => void;
+	unavailableIds?: string[];
 }
 
-export function StatusWidgetConfig({ value, onChange }: StatusWidgetConfigProps) {
+export function StatusWidgetConfig({
+	value,
+	onChange,
+	unavailableIds = []
+}: StatusWidgetConfigProps) {
 	const [config, setConfig] = useState<WidgetConfig>(() => value || DEFAULT_CONFIG);
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const draggedFromZone = useRef<"left" | "right" | null>(null);
@@ -205,10 +212,24 @@ export function StatusWidgetConfig({ value, onChange }: StatusWidgetConfigProps)
 		setConfig(value || DEFAULT_CONFIG);
 	}, [value]);
 
+	useEffect(() => {
+		if (!unavailableIds.length) return;
+		const next = {
+			left: config.left.filter((id) => !unavailableIds.includes(id)),
+			right: config.right.filter((id) => !unavailableIds.includes(id))
+		};
+		if (next.left.length !== config.left.length || next.right.length !== config.right.length) {
+			setConfig(next);
+			onChange(next);
+		}
+	}, [unavailableIds.join("|"), config, onChange]);
+
 	const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
 	const allPlaced = new Set([...config.left, ...config.right]);
-	const pool = WIDGET_DEFS.filter((w) => !allPlaced.has(w.id)).map((w) => w.id);
+	const pool = WIDGET_DEFS.filter(
+		(w) => !unavailableIds.includes(w.id) && !allPlaced.has(w.id)
+	).map((w) => w.id);
 
 	const emit = (next: WidgetConfig) => {
 		setConfig(next);

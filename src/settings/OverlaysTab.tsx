@@ -1,5 +1,6 @@
 import { Volume2, Sun, ArrowLeftToLine, ArrowRightToLine } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import type { DeviceCapabilities } from "../deviceCapabilities";
 
 interface OverlaysTabProps {
 	volumeOverlayEnabled: boolean;
@@ -10,6 +11,7 @@ interface OverlaysTabProps {
 	toggleBrightnessOverlay: () => void;
 	brightnessEdgeEnabled: boolean;
 	toggleBrightnessEdge: () => void;
+	deviceCapabilities: DeviceCapabilities;
 }
 
 export function OverlaysTab({
@@ -20,7 +22,8 @@ export function OverlaysTab({
 	brightnessOverlayEnabled,
 	toggleBrightnessOverlay,
 	brightnessEdgeEnabled,
-	toggleBrightnessEdge
+	toggleBrightnessEdge,
+	deviceCapabilities
 }: OverlaysTabProps) {
 	return (
 		<>
@@ -46,18 +49,20 @@ export function OverlaysTab({
 					</SettingRow>
 				)}
 
-				<SettingRow icon={Sun} label="Painel de brilho" desc="Controle de brilho do Willow">
-					<label className="toggle-switch">
-						<input
-							type="checkbox"
-							checked={brightnessOverlayEnabled}
-							onChange={toggleBrightnessOverlay}
-						/>
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
+				{deviceCapabilities.hasBrightness && (
+					<SettingRow icon={Sun} label="Painel de brilho" desc="Controle de brilho do Willow">
+						<label className="toggle-switch">
+							<input
+								type="checkbox"
+								checked={brightnessOverlayEnabled}
+								onChange={toggleBrightnessOverlay}
+							/>
+							<span className="slider"></span>
+						</label>
+					</SettingRow>
+				)}
 
-				{brightnessOverlayEnabled && (
+				{deviceCapabilities.hasBrightness && brightnessOverlayEnabled && (
 					<SettingRow
 						icon={ArrowRightToLine}
 						label="Mostrar ao tocar a borda"
