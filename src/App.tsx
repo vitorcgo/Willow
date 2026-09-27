@@ -1278,7 +1278,7 @@ function App() {
 			settingsMusicModeEnabled &&
 			mediaInfo.has_media &&
 			isPlaying &&
-			willowMode !== "calendar" &&
+			(willowMode === "status" || willowMode === "music") &&
 			(isNewTrackWhilePlaying || justStartedPlaying)
 		) {
 			// Switch if compact notch display is enabled OR we are hovered
@@ -1838,7 +1838,7 @@ function App() {
 			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
 			return Math.min(200 + totalWidgets * 50, 380);
 		}
-		if (isMusicMode && isHovered) return mediaLayout === "compact" ? 300 : 340;
+		if (isMusicMode && isHovered) return mediaLayout === "compact" ? 356 : 396;
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
 		let w = 140;
@@ -2050,6 +2050,22 @@ function App() {
 											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 500, damping: 30 }}
 										>
+											<div className="music-mode-shortcuts" aria-label="Atalhos do Willow">
+												<button
+													className="notch-control-orb music-mode-shortcut left"
+													onClick={toggleControlCenter}
+													title="Abrir controles de som e brilho"
+												>
+													<VolumeLowIcon size={11} />
+												</button>
+												<button
+													className="notch-control-orb music-mode-shortcut right"
+													onClick={toggleTrayPanel}
+													title="Abrir aplicativos ocultos"
+												>
+													<TrayIcon />
+												</button>
+											</div>
 											{mediaLayout === "compact" ? (
 												<CompactMediaPlayer
 													mediaInfo={mediaInfo}
@@ -2356,9 +2372,16 @@ function App() {
 														>
 															{/* Left: visualizer (music) or weather (command-center, calendar) */}
 															<div className="side-content left">
-																{isMusicMode && settingsVisualizerEnabled ? (
-																	<AnimatePresence>
-																		{settingsVisualizerEnabled && (
+																<div className="notch-side-tools">
+																	<button
+																		className={`notch-control-orb ${willowMode === "command-center" ? "active" : ""}`}
+																		onClick={toggleControlCenter}
+																		title="Abrir controles de som e brilho"
+																	>
+																		<VolumeLowIcon size={11} />
+																	</button>
+																	{isMusicMode && settingsVisualizerEnabled ? (
+																		<AnimatePresence>
 																			<motion.div
 																				key="visualizer"
 																				initial={{ scale: 0.8, opacity: 0 }}
@@ -2367,22 +2390,13 @@ function App() {
 																			>
 																				<Visualizer isPlaying={isPlaying} />
 																			</motion.div>
-																		)}
-																	</AnimatePresence>
-																) : !isMusicMode ? (
-																	<div className="notch-side-tools">
-																		<button
-																			className={`notch-control-orb ${willowMode === "command-center" ? "active" : ""}`}
-																			onClick={toggleControlCenter}
-																			title="Abrir controles de som e brilho"
-																		>
-																			<VolumeLowIcon size={11} />
-																		</button>
-																		{willowMode === "status" &&
+																		</AnimatePresence>
+																	) : (
+																		willowMode === "status" &&
 																			isHovered &&
-																			statusWidgets.left.map(renderStatusWidget)}
-																	</div>
-																) : null}
+																			statusWidgets.left.map(renderStatusWidget)
+																	)}
+																</div>
 															</div>
 
 															{/* Center - Time (always visible) */}
@@ -2428,8 +2442,9 @@ function App() {
 
 															{/* Right: album art (music) or battery (command-center, calendar) */}
 															<div className="side-content right">
-																{isMusicMode && settingsAlbumArtEnabled ? (
-																	<AnimatePresence mode="wait">
+																<div className="notch-side-tools">
+																	{isMusicMode && settingsAlbumArtEnabled && (
+																		<AnimatePresence mode="wait">
 																		<motion.div
 																			key="album-art"
 																			className="album-art-glow-wrapper"
@@ -2501,10 +2516,10 @@ function App() {
 																				</div>
 																			</button>
 																		</motion.div>
-																	</AnimatePresence>
-																) : !isMusicMode ? (
-																	<div className="notch-side-tools">
-																		{willowMode === "status" &&
+																		</AnimatePresence>
+																	)}
+																	{!isMusicMode &&
+																		willowMode === "status" &&
 																			isHovered &&
 																			statusWidgets.right.map(renderStatusWidget)}
 																		<button
@@ -2514,8 +2529,7 @@ function App() {
 																		>
 																			<TrayIcon />
 																		</button>
-																	</div>
-																) : null}
+																</div>
 															</div>
 														</motion.div>
 													)}

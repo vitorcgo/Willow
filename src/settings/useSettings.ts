@@ -8,6 +8,45 @@ import { useSettingsSync } from "../hooks/useSettingsSync";
 import { hexToHsl } from "../theme";
 import type { WidgetConfig } from "./types";
 
+export interface WeatherCityResult {
+	name: string;
+	admin1: string;
+	country: string;
+	countryCode: string;
+	displayName: string;
+	latitude: number;
+	longitude: number;
+}
+
+function normalizeLocationPart(value: string): string {
+	return value
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.trim()
+		.toLocaleLowerCase("pt-BR");
+}
+
+function matchesLocationPart(value: string, expected: string): boolean {
+	const normalizedValue = normalizeLocationPart(value);
+	const normalizedExpected = normalizeLocationPart(expected);
+	return normalizedValue === normalizedExpected || normalizedValue.startsWith(normalizedExpected);
+}
+
+function matchesCountry(result: WeatherCityResult, expected: string): boolean {
+	const names = [result.country, result.countryCode];
+	if (result.countryCode.length === 2) {
+		for (const locale of ["pt-BR", "en"]) {
+			try {
+				const localized = new Intl.DisplayNames([locale], { type: "region" }).of(result.countryCode);
+				if (localized) names.push(localized);
+			} catch {
+				// The country name returned by the API is still available as a fallback.
+			}
+		}
+	}
+	return names.some((name) => matchesLocationPart(name, expected));
+}
+
 function saveSetting(key: string, value: string) {
 	localStorage.setItem(key, value);
 	window.dispatchEvent(new CustomEvent("willow-setting-changed", { detail: { key, value } }));
@@ -53,9 +92,11 @@ export function useSettings() {
 	);
 	const [tempUnitFahrenheit, setTempUnitFahrenheit] = useState(false);
 	const [cityName, setCityName] = useState("");
-	const [citySearchResults, setCitySearchResults] = useState<
-		Array<{ name: string; country: string; latitude: number; longitude: number }>
-	>([]);
+	const [citySearch, setCitySearch] = useState("");
+	const [citySearchResults, setCitySearchResults] = useState<WeatherCityResult[]>([]);
+	const [citySearchStatus, setCitySearchStatus] = useState<
+		"idle" | "searching" | "empty" | "error"
+	>("idle");
 	const [showCityDropdown, setShowCityDropdown] = useState(false);
 	const [statusWidgets, setStatusWidgets] = useState<WidgetConfig>({
 		left: ["weather"],
@@ -165,7 +206,10 @@ export function useSettings() {
 			);
 
 			const savedCity = getVal("willow-weather-city");
-			if (savedCity) setCityName(savedCity);
+			if (savedCity) {
+				setCityName(savedCity);
+				setCitySearch(savedCity);
+			}
 
 			apply(getVal("willow-theme-mode"), setThemeMode, (v) => v);
 			apply(getVal("willow-theme-color"), setThemeColor, (v) => v);
@@ -236,7 +280,11 @@ export function useSettings() {
 		"willow-theme-opacity": setThemeOpacity,
 		"willow-theme-saturation": setThemeSaturation,
 		"willow-theme-brightness": setThemeBrightness,
-		"willow-weather-city": (v) => setCityName(v || "")
+		"willow-weather-city": (v) => {
+			const value = v || "";
+			setCityName(value);
+			setCitySearch(value);
+		}
 	});
 
 	// ── Listen for system accent changes (adaptive theme) ──
@@ -260,38 +308,87 @@ export function useSettings() {
 
 	// ── City search debounce ──
 	useEffect(() => {
-		if (cityName.trim().length < 2) {
+		const query = citySearch.trim();
+		if (query.length < 2 || (cityName && query === cityName)) {
 			setCitySearchResults([]);
 			setShowCityDropdown(false);
+			setCitySearchStatus("idle");
 			return;
 		}
 
+		const controller = new AbortController();
 		const timeout = setTimeout(async () => {
+			setCitySearchStatus("searching");
 			try {
+				const parts = query
+					.split(",")
+					.map((part) => part.trim())
+					.filter(Boolean);
+				const city = parts[0];
+				const state = parts.length >= 3 ? parts[1] : "";
+				const country = parts.length >= 3 ? parts.slice(2).join(", ") : "";
+				const qualifier = state || parts[1] || "";
+				const apiQuery = qualifier ? `${city}, ${qualifier}` : city;
 				const res = await fetch(
-					`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=5&language=pt&format=json`
+					`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(apiQuery)}&count=50&language=pt&format=json`,
+					{ signal: controller.signal }
 				);
+				if (!res.ok) throw new Error(`Geocoding returned ${res.status}`);
 				const data = await res.json();
-				if (data.results && data.results.length > 0) {
-					setCitySearchResults(
-						data.results.map((r: any) => ({
-							name: r.name,
-							country: r.country || "",
-							latitude: r.latitude,
-							longitude: r.longitude
-						}))
-					);
+				const results: WeatherCityResult[] = (Array.isArray(data.results) ? data.results : [])
+					.map((result: any) => {
+						const name = String(result.name || "").trim();
+						const admin1 = String(result.admin1 || "").trim();
+						const resultCountry = String(result.country || "").trim();
+						const displayName = [name, admin1, resultCountry].filter(Boolean).join(", ");
+						return {
+							name,
+							admin1,
+							country: resultCountry,
+							countryCode: String(result.country_code || "").trim(),
+							displayName,
+							latitude: Number(result.latitude),
+							longitude: Number(result.longitude)
+						};
+					})
+					.filter(
+						(result: WeatherCityResult) =>
+							result.name && Number.isFinite(result.latitude) && Number.isFinite(result.longitude)
+					)
+					.filter((result: WeatherCityResult) => {
+						// Open-Meteo already applies the state/admin1 qualifier in apiQuery.
+						// Only the third part needs local filtering because its API accepts
+						// a single qualifier after the city name.
+						if (country && !matchesCountry(result, country)) {
+							return false;
+						}
+						return true;
+					})
+					.slice(0, 10);
+
+				if (results.length > 0) {
+					setCitySearchResults(results);
 					setShowCityDropdown(true);
+					setCitySearchStatus("idle");
 				} else {
 					setCitySearchResults([]);
+					setShowCityDropdown(false);
+					setCitySearchStatus("empty");
 				}
-			} catch {
+			} catch (error) {
+				if (controller.signal.aborted) return;
+				console.error("City search failed:", error);
 				setCitySearchResults([]);
+				setShowCityDropdown(false);
+				setCitySearchStatus("error");
 			}
 		}, 300);
 
-		return () => clearTimeout(timeout);
-	}, [cityName]);
+		return () => {
+			clearTimeout(timeout);
+			controller.abort();
+		};
+	}, [cityName, citySearch]);
 
 	// ── Update checker ──
 	const checkForUpdates = async (manual = true) => {
@@ -573,16 +670,13 @@ export function useSettings() {
 	};
 
 	// ── City search ──
-	const selectCity = async (city: {
-		name: string;
-		country: string;
-		latitude: number;
-		longitude: number;
-	}) => {
-		setCityName(city.name);
+	const selectCity = async (city: WeatherCityResult) => {
+		setCityName(city.displayName);
+		setCitySearch(city.displayName);
 		setShowCityDropdown(false);
 		setCitySearchResults([]);
-		localStorage.setItem("willow-weather-city", city.name);
+		setCitySearchStatus("idle");
+		localStorage.setItem("willow-weather-city", city.displayName);
 		localStorage.setItem("willow-weather-lat", city.latitude.toString());
 		localStorage.setItem("willow-weather-lon", city.longitude.toString());
 		await invoke("save_setting", {
@@ -593,14 +687,22 @@ export function useSettings() {
 			key: "willow-weather-lon",
 			value: city.longitude.toString()
 		}).catch(() => {});
-		await invoke("save_setting", { key: "willow-weather-city", value: city.name }).catch(() => {});
-		emit("weather-refresh", { lat: city.latitude, lon: city.longitude });
+		await invoke("save_setting", { key: "willow-weather-city", value: city.displayName }).catch(
+			() => {}
+		);
+		emit("weather-refresh", {
+			lat: city.latitude,
+			lon: city.longitude,
+			city: city.displayName
+		});
 	};
 
 	const handleCityClear = async () => {
 		setCityName("");
+		setCitySearch("");
 		setShowCityDropdown(false);
 		setCitySearchResults([]);
+		setCitySearchStatus("idle");
 		localStorage.removeItem("willow-weather-city");
 		localStorage.removeItem("willow-weather-lat");
 		localStorage.removeItem("willow-weather-lon");
@@ -717,8 +819,10 @@ export function useSettings() {
 		tempUnitFahrenheit,
 		toggleTempUnit,
 		cityName,
-		setCityName,
+		citySearch,
+		setCitySearch,
 		citySearchResults,
+		citySearchStatus,
 		showCityDropdown,
 		setShowCityDropdown,
 		selectCity,

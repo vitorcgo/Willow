@@ -462,6 +462,10 @@ input:checked + .slider:before {
 	outline: none;
 }
 
+.city-input-row:has(.searching-spinner) input {
+	padding-right: 24px;
+}
+
 .city-input-row input::placeholder {
 	color: var(--willow-text-muted, rgba(255, 255, 255, 0.2));
 }
@@ -531,6 +535,16 @@ input:checked + .slider:before {
 .city-dropdown-country {
 	font-size: 10px;
 	color: var(--willow-text-muted, rgba(255, 255, 255, 0.35));
+}
+
+.city-search-message {
+	padding: 4px 0 2px;
+	font-size: 10px;
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.45));
+}
+
+.city-search-message.error {
+	color: #ff9b95;
 }
 
 .settings-select {

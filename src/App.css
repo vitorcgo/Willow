@@ -1046,10 +1046,31 @@ img {
 .expanded-music-container {
 	width: 100%;
 	height: 100%;
-	padding: 0px;
+	padding: 0 28px;
 	box-sizing: border-box;
 	display: flex;
 	align-items: stretch;
+}
+
+.music-mode-shortcuts {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 6;
+}
+
+.music-mode-shortcut {
+	position: absolute;
+	top: 10px;
+	pointer-events: auto;
+}
+
+.music-mode-shortcut.left {
+	left: 5px;
+}
+
+.music-mode-shortcut.right {
+	right: 5px;
 }
 
 .compact-premium-layout {

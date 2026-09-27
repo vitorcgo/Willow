@@ -167,8 +167,10 @@ function SettingsApp() {
 							tempUnitFahrenheit={settings.tempUnitFahrenheit}
 							toggleTempUnit={settings.toggleTempUnit}
 							cityName={settings.cityName}
-							setCityName={settings.setCityName}
+							citySearch={settings.citySearch}
+							setCitySearch={settings.setCitySearch}
 							citySearchResults={settings.citySearchResults}
+							citySearchStatus={settings.citySearchStatus}
 							showCityDropdown={settings.showCityDropdown}
 							setShowCityDropdown={settings.setShowCityDropdown}
 							selectCity={settings.selectCity}

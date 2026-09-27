@@ -47,8 +47,6 @@ const WMO_CODES: Record<number, string> = {
 	99: "Tempestade"
 };
 
-const DELHI_LAT = 28.6139;
-const DELHI_LON = 77.209;
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 interface WeatherState {
@@ -61,6 +59,12 @@ interface ResolvedLocation {
 	lat: number;
 	lon: number;
 	city?: string;
+}
+
+function isValidCoordinate(value: unknown, min: number, max: number): boolean {
+	if (value === null || value === undefined || String(value).trim() === "") return false;
+	const coordinate = Number(value);
+	return Number.isFinite(coordinate) && coordinate >= min && coordinate <= max;
 }
 
 function getWeatherIcon(condition: string, isDay = true): ComponentType<LucideProps> {
@@ -106,7 +110,7 @@ async function fetchWeatherForCoords(
 
 	const data = await response.json();
 
-	if (!data?.current?.temperature_2m) {
+	if (!Number.isFinite(data?.current?.temperature_2m)) {
 		throw new Error("Invalid weather API response shape");
 	}
 
@@ -130,10 +134,10 @@ async function resolveLocation(): Promise<ResolvedLocation> {
 		const savedLon = settings["willow-weather-lon"] || localStorage.getItem("willow-weather-lon");
 		const savedCity = settings["willow-weather-city"] || localStorage.getItem("willow-weather-city");
 
-		if (savedLat && savedLon) {
+		if (isValidCoordinate(savedLat, -90, 90) && isValidCoordinate(savedLon, -180, 180)) {
 			return {
-				lat: parseFloat(savedLat),
-				lon: parseFloat(savedLon),
+				lat: Number(savedLat),
+				lon: Number(savedLon),
 				city: savedCity || undefined
 			};
 		}
@@ -148,8 +152,8 @@ async function resolveLocation(): Promise<ResolvedLocation> {
 			const data = await res.json();
 			const lat = data.latitude || data.lat;
 			const lon = data.longitude || data.lon;
-			if (lat && lon) {
-				return { lat, lon, city: data.city || undefined };
+			if (isValidCoordinate(lat, -90, 90) && isValidCoordinate(lon, -180, 180)) {
+				return { lat: Number(lat), lon: Number(lon), city: data.city || undefined };
 			}
 		}
 	} catch {
@@ -161,16 +165,18 @@ async function resolveLocation(): Promise<ResolvedLocation> {
 		const res = await fetch("https://ip-api.com/json/?fields=status,lat,lon,city,country");
 		if (res.ok) {
 			const data = await res.json();
-			if (data.lat && data.lon) {
-				return { lat: data.lat, lon: data.lon, city: data.city || undefined };
+			if (
+				isValidCoordinate(data.lat, -90, 90) &&
+				isValidCoordinate(data.lon, -180, 180)
+			) {
+				return { lat: Number(data.lat), lon: Number(data.lon), city: data.city || undefined };
 			}
 		}
 	} catch {
 		// fall through to default
 	}
 
-	// 4. Default to Delhi
-	return { lat: DELHI_LAT, lon: DELHI_LON, city: "Delhi" };
+	throw new Error("Não foi possível determinar a localização do clima");
 }
 
 async function persistWeather(temp: number | null, condition: string): Promise<void> {
@@ -212,11 +218,11 @@ export function useWeather(enabled: boolean) {
 
 	// Core fetch + refresh logic
 	const doFetch = useCallback(
-		async (showStaleOnError = true, coords?: { lat: number; lon: number }) => {
+		async (showStaleOnError = true, coords?: { lat: number; lon: number; city?: string }) => {
 			if (!enabledRef.current) return;
 
 			try {
-				const location = coords ? { ...coords, city: undefined } : await resolveLocation();
+				const location = coords || (await resolveLocation());
 				const result = await fetchWeatherForCoords(location.lat, location.lon, tempUnitRef.current);
 
 				setTemperature(result.temperature);
@@ -276,8 +282,10 @@ export function useWeather(enabled: boolean) {
 	useEffect(() => {
 		const unlisten = listen<{ key: string; value: any }>("settings-changed", (event) => {
 			const { key, value } = event.payload;
-			if (key === "temp-unit") {
-				setTempUnit(value ? "fahrenheit" : "celsius");
+			if (key === "willow-temp-unit" || key === "temp-unit") {
+				setTempUnit(
+					key === "willow-temp-unit" ? String(value) : value ? "fahrenheit" : "celsius"
+				);
 			}
 		});
 		const unlistenExternal = listen<{ key: string; value: any }>(
@@ -299,14 +307,21 @@ export function useWeather(enabled: boolean) {
 	useEffect(() => {
 		if (!enabled) return;
 
-		const unlisten = listen<{ lat: number; lon: number } | true>("weather-refresh", (event) => {
+		const unlisten = listen<{ lat: number; lon: number; city?: string } | true>(
+			"weather-refresh",
+			(event) => {
 			const payload = event.payload;
 			if (payload && typeof payload === "object" && "lat" in payload && "lon" in payload) {
-				doFetch(false, { lat: (payload as any).lat, lon: (payload as any).lon });
+				doFetch(false, {
+					lat: Number(payload.lat),
+					lon: Number(payload.lon),
+					city: payload.city
+				});
 			} else {
 				doFetch(false);
 			}
-		});
+			}
+		);
 		return () => {
 			unlisten.then((fn) => fn());
 		};
@@ -316,7 +331,7 @@ export function useWeather(enabled: boolean) {
 	useEffect(() => {
 		const unlisten = listen<{ key: string; value: any }>("settings-changed", (event) => {
 			const { key, value } = event.payload;
-			if (key === "weather-city") {
+			if (key === "willow-weather-city" || key === "weather-city") {
 				setCityName(String(value || ""));
 			}
 		});

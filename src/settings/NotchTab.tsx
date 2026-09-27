@@ -13,6 +13,7 @@ import {
 import { SettingRow } from "./SettingRow";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
+import type { WeatherCityResult } from "./useSettings";
 
 interface NotchTabProps {
 	notchMode: string;
@@ -36,16 +37,13 @@ interface NotchTabProps {
 	tempUnitFahrenheit: boolean;
 	toggleTempUnit: () => void;
 	cityName: string;
-	setCityName: (name: string) => void;
-	citySearchResults: Array<{ name: string; country: string; latitude: number; longitude: number }>;
+	citySearch: string;
+	setCitySearch: (name: string) => void;
+	citySearchResults: WeatherCityResult[];
+	citySearchStatus: "idle" | "searching" | "empty" | "error";
 	showCityDropdown: boolean;
 	setShowCityDropdown: (show: boolean) => void;
-	selectCity: (city: {
-		name: string;
-		country: string;
-		latitude: number;
-		longitude: number;
-	}) => void;
+	selectCity: (city: WeatherCityResult) => void;
 	handleCityClear: () => void;
 	statusWidgets: WidgetConfig;
 	handleWidgetsChange: (config: WidgetConfig) => void;
@@ -73,8 +71,10 @@ export function NotchTab({
 	tempUnitFahrenheit,
 	toggleTempUnit,
 	cityName,
-	setCityName,
+	citySearch,
+	setCitySearch,
 	citySearchResults,
+	citySearchStatus,
 	showCityDropdown,
 	setShowCityDropdown,
 	selectCity,
@@ -213,9 +213,9 @@ export function NotchTab({
 						<div className="city-input-row">
 							<input
 								type="text"
-								placeholder="Buscar cidade..."
-								value={cityName}
-								onChange={(e) => setCityName(e.target.value)}
+								placeholder="Cidade, estado, país"
+								value={citySearch}
+								onChange={(e) => setCitySearch(e.target.value)}
 								onFocus={() => citySearchResults.length > 0 && setShowCityDropdown(true)}
 								onKeyDown={(e) => {
 									if (e.key === "Enter" && citySearchResults.length > 0) {
@@ -228,7 +228,8 @@ export function NotchTab({
 								}}
 								onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
 							/>
-							{cityName && (
+							{citySearchStatus === "searching" && <span className="searching-spinner" />}
+							{citySearch && citySearchStatus !== "searching" && (
 								<button
 									className="city-clear-btn"
 									onMouseDown={(e) => {
@@ -245,7 +246,7 @@ export function NotchTab({
 							<div className="city-dropdown">
 								{citySearchResults.map((city) => (
 									<button
-										key={`${city.name}-${city.latitude}`}
+										key={`${city.name}-${city.latitude}-${city.longitude}`}
 										className="city-dropdown-item"
 										onMouseDown={(e) => {
 											e.preventDefault();
@@ -253,10 +254,18 @@ export function NotchTab({
 										}}
 									>
 										<span className="city-dropdown-name">{city.name}</span>
-										<span className="city-dropdown-country">{city.country}</span>
+										<span className="city-dropdown-country">
+											{[city.admin1, city.country].filter(Boolean).join(", ")}
+										</span>
 									</button>
 								))}
 							</div>
+						)}
+						{citySearchStatus === "empty" && (
+							<div className="city-search-message">Local não encontrado. Use cidade, estado, país.</div>
+						)}
+						{citySearchStatus === "error" && (
+							<div className="city-search-message error">Não foi possível consultar os locais agora.</div>
 						)}
 					</div>
 				)}
