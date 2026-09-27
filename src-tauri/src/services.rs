@@ -2727,7 +2727,9 @@ pub fn register_appbar(window: tauri::WebviewWindow) {
     if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
         let m_size = monitor.size();
         let m_pos = monitor.position();
-        let hwnd = window.hwnd().unwrap();
+        let Ok(hwnd) = window.hwnd() else {
+            return;
+        };
         let scale = monitor.scale_factor();
         let willow_scale = crate::utils::get_willow_scale(window.app_handle());
         let ph = ((420.0 * willow_scale) * scale) as i32;
@@ -2832,7 +2834,9 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
     if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
         let m_size = monitor.size();
         let m_pos = monitor.position();
-        let hwnd = window.hwnd().unwrap();
+        let Ok(hwnd) = window.hwnd() else {
+            return;
+        };
         let scale = monitor.scale_factor();
         let willow_scale = crate::utils::get_willow_scale(window.app_handle());
 

@@ -309,6 +309,7 @@ fn main() {
             // the primary monitor's right edge.
             if let Some(ai_win) = app.get_webview_window("ai-usage") {
                 place_ai_usage_window(&ai_win);
+                let _ = ai_win.show();
                 let window_for_events = ai_win.clone();
                 ai_win.on_window_event(move |event| match event {
                     tauri::WindowEvent::ScaleFactorChanged { .. } => {
@@ -318,6 +319,33 @@ fn main() {
                         api.prevent_close();
                     }
                     _ => {}
+                });
+            }
+
+            // Native startup fallback. The shell windows must not depend on React
+            // finishing its first render: a webview error would otherwise leave the
+            // application running with every visible surface still hidden.
+            {
+                let startup_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+
+                    let notch_mode = get_setting_str(&startup_handle, "willow-notch-mode")
+                        .unwrap_or_else(|| "fixed".to_string());
+                    change_notch_mode(startup_handle.clone(), notch_mode).await;
+
+                    let dock_enabled = get_setting_str(&startup_handle, "willow-dock-enabled")
+                        .unwrap_or_else(|| "true".to_string())
+                        == "true";
+                    if dock_enabled {
+                        let dock_mode = get_setting_str(&startup_handle, "willow-dock-mode")
+                            .unwrap_or_else(|| "fixed".to_string());
+                        init_dock(startup_handle.clone(), dock_mode).await;
+                    } else {
+                        toggle_dock(startup_handle.clone(), false).await;
+                    }
+
+                    sync_appbar(startup_handle).await;
                 });
             }
 
