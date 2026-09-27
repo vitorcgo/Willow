@@ -2368,9 +2368,14 @@ pub fn open_media_source_app() {
 }
 
 #[tauri::command]
-pub fn set_volume(volume: f32) {
+pub fn set_volume(volume: f32) -> Result<(), String> {
     if let Some(sender) = COMMAND_SENDER.get() {
-        let _ = sender.send(crate::types::SystemCommand::SetVolume(volume));
+        sender
+            .send(crate::types::SystemCommand::SetVolume(volume))
+            .map_err(|_| "O serviço de volume não está respondendo".to_string())?;
+        Ok(())
+    } else {
+        Err("O serviço de volume ainda não foi iniciado".to_string())
     }
 }
 
@@ -2632,12 +2637,15 @@ fn set_radio_state_sync(
                 } else {
                     RadioState::Off
                 };
-                let _ = radio.SetStateAsync(target).and_then(|op| op.get());
+                radio
+                    .SetStateAsync(target)
+                    .and_then(|op| op.get())
+                    .map_err(|e| format!("O Windows recusou a alteração do rádio: {e}"))?;
                 return Ok(());
             }
         }
     }
-    Ok(())
+    Err("O adaptador solicitado não foi encontrado".to_string())
 }
 
 #[tauri::command]
@@ -3111,8 +3119,10 @@ pub fn setup_settings_watcher(app: AppHandle) {
 
             let mut notify_buffer = [0u8; 4096];
             let mut bytes_returned = 0u32;
-            let mut overlapped = OVERLAPPED::default();
-            overlapped.hEvent = h_event;
+            let mut overlapped = OVERLAPPED {
+                hEvent: h_event,
+                ..Default::default()
+            };
 
             loop {
                 let success = ReadDirectoryChangesW(

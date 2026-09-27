@@ -1577,15 +1577,20 @@ function App() {
 	}, [skipNext, nextFront, nextBack]);
 
 	const lastVolumeCallRef = useRef(0);
+	const pendingVolumeCallRef = useRef<number | null>(null);
 
 	const handleVolumeChange = useCallback((newVol: number) => {
 		setVolume(newVol);
 
-		const now = Date.now();
-		if (now - lastVolumeCallRef.current < 50) return;
-		lastVolumeCallRef.current = now;
-
-		invoke("set_volume", { volume: newVol }).catch(() => {});
+		if (pendingVolumeCallRef.current !== null) window.clearTimeout(pendingVolumeCallRef.current);
+		const commit = () => {
+			lastVolumeCallRef.current = Date.now();
+			pendingVolumeCallRef.current = null;
+			invoke("set_volume", { volume: newVol }).catch(console.error);
+		};
+		const remaining = 50 - (Date.now() - lastVolumeCallRef.current);
+		if (remaining <= 0) commit();
+		else pendingVolumeCallRef.current = window.setTimeout(commit, remaining);
 	}, []);
 
 	// Open WiFi settings
@@ -1632,15 +1637,22 @@ function App() {
 
 	// Brightness change with throttling
 	const lastBrightnessCallRef = useRef(0);
+	const pendingBrightnessCallRef = useRef<number | null>(null);
 
 	const handleBrightnessChange = useCallback((newVal: number) => {
 		setCurrentBrightness(newVal);
 
-		const now = Date.now();
-		if (now - lastBrightnessCallRef.current < 50) return;
-		lastBrightnessCallRef.current = now;
-
-		invoke("set_brightness", { brightness: newVal }).catch(() => {});
+		if (pendingBrightnessCallRef.current !== null) {
+			window.clearTimeout(pendingBrightnessCallRef.current);
+		}
+		const commit = () => {
+			lastBrightnessCallRef.current = Date.now();
+			pendingBrightnessCallRef.current = null;
+			invoke("set_brightness", { brightness: newVal }).catch(console.error);
+		};
+		const remaining = 50 - (Date.now() - lastBrightnessCallRef.current);
+		if (remaining <= 0) commit();
+		else pendingBrightnessCallRef.current = window.setTimeout(commit, remaining);
 	}, []);
 
 	// Open system tray (unhide taskbar and invoke Win+B)

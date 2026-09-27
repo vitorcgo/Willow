@@ -827,7 +827,7 @@ pub fn capture_hwnd_to_base64(hwnd: HWND, max_width: u32, max_height: u32) -> Op
                 DIB_RGB_COLORS,
             ) != 0
             {
-                for chunk in pixels.chunks_exact_mut(4) {
+                for chunk in pixels.as_chunks_mut::<4>().0 {
                     let b = chunk[0];
                     let r = chunk[2];
                     chunk[0] = r;

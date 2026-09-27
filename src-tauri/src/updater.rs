@@ -1,28 +1,21 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_updater::UpdaterExt;
+
+const RELEASES_API: &str = "https://api.github.com/repos/vitorcgo/Willow/releases/latest";
+const RELEASES_PAGE: &str = "https://github.com/vitorcgo/Willow/releases/latest";
 
 /// Minimum time between background update checks. Manual checks bypass this.
 const CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
 /// Network timeout for a single manifest request.
 const CHECK_TIMEOUT_SECS: u64 = 10;
-/// A release must be at least this old before auto-update installs it, so a
-/// broken release cannot reach everyone within minutes of being published.
-const MIN_AUTO_INSTALL_AGE_SECS: i64 = 24 * 60 * 60;
-/// Minimum time before an auto-install retries a version whose installer was
-/// already launched. Without it, a failed install would re-download and exit
-/// on every startup, because the process exits from inside the install path.
-const AUTO_INSTALL_RETRY_SECS: i64 = 24 * 60 * 60;
 const STATE_FILE: &str = "update-state.json";
 
 /// Serializes manifest requests so concurrent callers share a single network hit.
 static CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-static UPDATE_BUSY: AtomicBool = AtomicBool::new(false);
 static LAST_CHECK: Mutex<Option<UpdateCheckResult>> = Mutex::new(None);
 
 #[derive(Clone, Default, Serialize)]
@@ -34,6 +27,8 @@ pub struct UpdateCheckResult {
     pub date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -42,6 +37,8 @@ struct PersistedUpdateState {
     app_version: String,
     version: String,
     date: String,
+    #[serde(default)]
+    url: String,
     /// Version whose installer was last launched, auto or manual.
     #[serde(default)]
     attempted_version: String,
@@ -91,7 +88,81 @@ fn result_from_state(state: &PersistedUpdateState) -> UpdateCheckResult {
         version: Some(state.version.clone()),
         date: (!state.date.is_empty()).then(|| state.date.clone()),
         body: None,
+        url: (!state.url.is_empty()).then(|| state.url.clone()),
     }
+}
+
+#[derive(Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    published_at: Option<String>,
+    body: Option<String>,
+    html_url: String,
+}
+
+fn version_parts(value: &str) -> Vec<u64> {
+    value
+        .trim()
+        .trim_start_matches(['v', 'V'])
+        .split('.')
+        .map(|part| {
+            part.split(|ch: char| !ch.is_ascii_digit())
+                .next()
+                .unwrap_or("0")
+                .parse::<u64>()
+                .unwrap_or(0)
+        })
+        .collect()
+}
+
+fn version_is_newer(candidate: &str, current: &str) -> bool {
+    let mut candidate = version_parts(candidate);
+    let mut current = version_parts(current);
+    let width = candidate.len().max(current.len()).max(3);
+    candidate.resize(width, 0);
+    current.resize(width, 0);
+    candidate > current
+}
+
+fn check_github_release(current_version: &str) -> Result<UpdateCheckResult, String> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(CHECK_TIMEOUT_SECS))
+        .timeout_read(Duration::from_secs(CHECK_TIMEOUT_SECS))
+        .timeout_write(Duration::from_secs(CHECK_TIMEOUT_SECS))
+        .build();
+    let response = match agent
+        .get(RELEASES_API)
+        .set("Accept", "application/vnd.github+json")
+        .set("User-Agent", "Willow-Updater")
+        .call()
+    {
+        Ok(response) => response,
+        // GitHub returns 404 while a repository has no published release.
+        // That is a valid "no update" state, not a broken settings control.
+        Err(ureq::Error::Status(404, _)) => {
+            return Ok(UpdateCheckResult {
+                url: Some(RELEASES_PAGE.to_string()),
+                ..Default::default()
+            });
+        }
+        Err(error) => {
+            return Err(format!(
+                "Não foi possível consultar as versões do Willow: {error}"
+            ));
+        }
+    };
+    let release: GithubRelease = response
+        .into_json()
+        .map_err(|error| format!("A resposta de atualização é inválida: {error}"))?;
+    let version = release.tag_name.trim_start_matches(['v', 'V']).to_string();
+    let available = version_is_newer(&version, current_version);
+    Ok(UpdateCheckResult {
+        available,
+        version: available.then_some(version),
+        date: release.published_at,
+        body: release.body,
+        url: Some(release.html_url),
+    })
 }
 
 /// Returns a cached result only when the last check is recent and was made
@@ -105,22 +176,6 @@ fn cached_result(app: &AppHandle) -> Option<UpdateCheckResult> {
         return None;
     }
     Some(result_from_state(&state))
-}
-
-pub fn release_is_old_enough(result: &UpdateCheckResult) -> bool {
-    match result.date.as_deref().and_then(parse_rfc3339_utc) {
-        Some(published) => now_secs() - published >= MIN_AUTO_INSTALL_AGE_SECS,
-        None => false,
-    }
-}
-
-/// True when an installer was already launched for this exact version recently.
-/// On Windows the process exits from inside the install path, so without this
-/// a failed install would relaunch the installer on every startup.
-fn install_attempted_recently(state: &PersistedUpdateState, version: &str, now: i64) -> bool {
-    state.attempted_version == version
-        && state.attempted_at > 0
-        && now - state.attempted_at < AUTO_INSTALL_RETRY_SECS
 }
 
 /// Checks for an update at most once per `CHECK_INTERVAL_SECS` unless `force`
@@ -146,25 +201,11 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
         }
     }
 
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let update = tokio::time::timeout(Duration::from_secs(CHECK_TIMEOUT_SECS), updater.check())
-        .await
-        .map_err(|_| "update check timed out".to_string())?
-        .map_err(|e| e.to_string())?;
-
-    let result = match &update {
-        Some(update) => UpdateCheckResult {
-            available: true,
-            version: Some(update.version.clone()),
-            date: update
-                .raw_json
-                .get("pub_date")
-                .and_then(|value| value.as_str())
-                .map(str::to_string),
-            body: update.body.clone(),
-        },
-        None => UpdateCheckResult::default(),
-    };
+    let current_version = app.package_info().version.to_string();
+    let result =
+        tauri::async_runtime::spawn_blocking(move || check_github_release(&current_version))
+            .await
+            .map_err(|error| error.to_string())??;
 
     let previous = read_state(app);
     write_state(
@@ -174,6 +215,7 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
             app_version: app.package_info().version.to_string(),
             version: result.version.clone().unwrap_or_default(),
             date: result.date.clone().unwrap_or_default(),
+            url: result.url.clone().unwrap_or_default(),
             attempted_version: previous.attempted_version,
             attempted_at: previous.attempted_at,
         },
@@ -184,155 +226,60 @@ pub async fn check(app: &AppHandle, force: bool) -> Result<UpdateCheckResult, St
     Ok(result)
 }
 
-/// Downloads and installs the available update. On Windows the updater plugin
-/// launches the NSIS installer and terminates this process, which then
-/// relaunches the app; on other platforms this returns after restarting.
+/// Opens the trusted GitHub release page for the available version. Automatic
+/// installation remains disabled until a matching signing public key is
+/// configured in the repository.
 pub async fn install(app: &AppHandle) -> Result<(), String> {
-    if UPDATE_BUSY.swap(true, Ordering::SeqCst) {
-        return Err("an update is already in progress".to_string());
-    }
-    let result = install_inner(app).await;
-    UPDATE_BUSY.store(false, Ordering::SeqCst);
-    result
-}
-
-async fn install_inner(app: &AppHandle) -> Result<(), String> {
-    // Hold the check lock so a concurrent check cannot mutate state mid-install.
-    let _guard = CHECK_LOCK.lock().await;
-
-    let hook_handle = app.clone();
-    let updater = app
-        .updater_builder()
-        .on_before_exit(move || {
-            let _ = hook_handle.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "installing" }),
-            );
-            hook_handle.cleanup_before_exit();
+    let url = LAST_CHECK
+        .lock()
+        .ok()
+        .and_then(|result| result.as_ref().and_then(|result| result.url.clone()))
+        .or_else(|| {
+            let state = read_state(app);
+            (!state.url.is_empty()).then_some(state.url)
         })
-        .build()
-        .map_err(|e| e.to_string())?;
+        .unwrap_or_else(|| RELEASES_PAGE.to_string());
 
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "no update available".to_string())?;
-
-    let _ = app.emit(
-        "auto-update-status",
-        serde_json::json!({ "status": "downloading", "progress": 0 }),
-    );
-
-    let progress_handle = app.clone();
-    let downloaded = Arc::new(AtomicU64::new(0));
-    let downloaded_cb = downloaded.clone();
-    let bytes = update
-        .download(
-            move |chunk_len, total| {
-                let current =
-                    downloaded_cb.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
-                if let Some(total) = total {
-                    if total > 0 {
-                        let progress = (current.saturating_mul(100) / total) as u32;
-                        let _ = progress_handle.emit(
-                            "auto-update-status",
-                            serde_json::json!({ "status": "downloading", "progress": progress }),
-                        );
-                    }
-                }
-            },
-            || {},
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // Record the attempt before the installer is launched: on Windows the
-    // process exits from inside `install`, so a failed install would otherwise
-    // re-download and exit on every startup.
-    {
-        let mut state = read_state(app);
-        state.attempted_version = update.version.clone();
-        state.attempted_at = now_secs();
-        write_state(app, &state);
-    }
-
-    update.install(bytes).map_err(|e| e.to_string())?;
-
-    // Windows: `install` launches the installer and exits inside the plugin,
-    // so this is only reached on other platforms.
-    #[cfg(not(windows))]
-    {
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "done" }),
+    unsafe {
+        use windows::Win32::UI::Shell::ShellExecuteA;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        let operation = std::ffi::CString::new("open").map_err(|e| e.to_string())?;
+        let target = std::ffi::CString::new(url).map_err(|e| e.to_string())?;
+        let result = ShellExecuteA(
+            None,
+            windows::core::PCSTR(operation.as_ptr() as *const u8),
+            windows::core::PCSTR(target.as_ptr() as *const u8),
+            windows::core::PCSTR::null(),
+            windows::core::PCSTR::null(),
+            SW_SHOWNORMAL,
         );
-        app.restart()
+        if result.0 as isize <= 32 {
+            return Err("Não foi possível abrir a página da atualização".to_string());
+        }
     }
-
-    #[cfg(windows)]
     Ok(())
 }
 
-/// Startup entry point: always checks so the UI can show an update badge, and
-/// auto-installs only when the user enabled it and the release has aged.
+/// Startup entry point for the optional background check. It never interrupts
+/// startup and never opens or installs anything without an explicit click.
 pub async fn run_startup_check(app: AppHandle) {
     let auto_update =
         crate::utils::get_setting_str(&app, "willow-auto-update").as_deref() == Some("true");
 
-    if auto_update {
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "checking" }),
-        );
+    if !auto_update {
+        return;
     }
 
     let result = match check(&app, false).await {
         Ok(result) => result,
-        Err(_) => {
-            if auto_update {
-                let _ = app.emit(
-                    "auto-update-status",
-                    serde_json::json!({ "status": "done" }),
-                );
-            }
-            return;
-        }
+        Err(_) => return,
     };
 
     if !result.available {
-        if auto_update {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "done" }),
-            );
-        }
         return;
     }
 
     let _ = app.emit("update-available", &result);
-
-    let attempted_version = result.version.clone().unwrap_or_default();
-    let attempted_recently =
-        install_attempted_recently(&read_state(&app), &attempted_version, now_secs());
-
-    if auto_update && release_is_old_enough(&result) && !attempted_recently {
-        // On Windows this never returns: the installer exits the process.
-        if install(&app).await.is_err() {
-            let _ = app.emit(
-                "auto-update-status",
-                serde_json::json!({ "status": "done" }),
-            );
-        }
-    } else if auto_update {
-        // An install for this version was already attempted (or is pending),
-        // so keep the badge visible instead of relaunching the installer on
-        // every startup.
-        let _ = app.emit(
-            "auto-update-status",
-            serde_json::json!({ "status": "done" }),
-        );
-    }
 }
 
 #[tauri::command]
@@ -356,9 +303,14 @@ pub fn get_update_state(app: AppHandle) -> UpdateCheckResult {
             return result.clone();
         }
     }
-    result_from_state(&read_state(&app))
+    let state = read_state(&app);
+    if state.app_version != app.package_info().version.to_string() {
+        return UpdateCheckResult::default();
+    }
+    result_from_state(&state)
 }
 
+#[cfg(test)]
 fn parse_rfc3339_utc(value: &str) -> Option<i64> {
     if value.len() < 20 || !value.ends_with('Z') {
         return None;
@@ -386,6 +338,7 @@ fn parse_rfc3339_utc(value: &str) -> Option<i64> {
 }
 
 /// Howard Hinnant's days-from-civil algorithm.
+#[cfg(test)]
 fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
     let era = if year >= 0 { year } else { year - 399 } / 400;
@@ -398,9 +351,7 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        days_from_civil, install_attempted_recently, parse_rfc3339_utc, PersistedUpdateState,
-    };
+    use super::{days_from_civil, parse_rfc3339_utc, version_is_newer, PersistedUpdateState};
 
     #[test]
     fn parses_tauri_action_pub_date() {
@@ -439,22 +390,10 @@ mod tests {
     }
 
     #[test]
-    fn skips_recent_install_attempts_only() {
-        let state = PersistedUpdateState {
-            attempted_version: "3.8.8".into(),
-            attempted_at: 1_000,
-            ..Default::default()
-        };
-
-        assert!(install_attempted_recently(&state, "3.8.8", 1_000 + 3_600));
-        assert!(!install_attempted_recently(
-            &state,
-            "3.8.8",
-            1_000 + 24 * 60 * 60
-        ));
-        assert!(!install_attempted_recently(&state, "3.8.9", 1_000 + 3_600));
-
-        let empty = PersistedUpdateState::default();
-        assert!(!install_attempted_recently(&empty, "3.8.8", 1_000));
+    fn compares_release_versions() {
+        assert!(version_is_newer("v0.1.2", "0.1.1"));
+        assert!(version_is_newer("1.0.0", "0.9.9"));
+        assert!(!version_is_newer("0.1.1", "0.1.1"));
+        assert!(!version_is_newer("0.1.0", "0.1.1"));
     }
 }

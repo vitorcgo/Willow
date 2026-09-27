@@ -246,17 +246,26 @@ function OverlayApp() {
 	useEffect(() => {
 		invoke("load_settings")
 			.then((settings: any) => {
+				const readBool = (key: string, fallback: boolean) => {
+					const value = settings?.[key];
+					if (value === undefined || value === null) return fallback;
+					return value === true || value === "true";
+				};
 				if (settings && settings["willow-scale"] !== undefined) {
 					setScale(parseFloat(settings["willow-scale"]));
 				}
-				if (settings && settings["willow-brightness-overlay-enabled"] !== undefined) {
-					setBrightnessOverlayEnabled(settings["willow-brightness-overlay-enabled"] === "true");
-				}
-				if (settings && settings["willow-volume-overlay-enabled"] !== undefined) {
-					setVolumeOverlayEnabled(settings["willow-volume-overlay-enabled"] === "true");
-				}
+				setBrightnessOverlayEnabled(
+					readBool("willow-brightness-overlay-enabled", brightnessOverlayEnabled)
+				);
+				setBrightnessEdgeEnabled(
+					readBool("willow-brightness-edge-enabled", brightnessEdgeEnabled)
+				);
+				setVolumeOverlayEnabled(readBool("willow-volume-overlay-enabled", volumeOverlayEnabled));
+				setVolumeEdgeEnabled(readBool("willow-volume-edge-enabled", volumeEdgeEnabled));
 			})
 			.catch(console.error);
+		// Initial values are used only as fallbacks for missing keys.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	// ── Splash Detection ──
@@ -443,6 +452,7 @@ function OverlayApp() {
 
 	// ── Volume Controls ──
 	const lastVolumeCall = useRef(0);
+	const pendingVolumeCall = useRef<number | null>(null);
 	const handleVolumeChange = useCallback(
 		(newVol: number) => {
 			setVolume(newVol);
@@ -450,26 +460,39 @@ function OverlayApp() {
 			setMode("volume");
 			resetHideTimeout();
 
-			const now = Date.now();
-			if (now - lastVolumeCall.current < 50) return;
-			lastVolumeCall.current = now;
-			invoke("set_volume", { volume: newVol }).catch(() => {});
+			if (pendingVolumeCall.current !== null) window.clearTimeout(pendingVolumeCall.current);
+			const commit = () => {
+				lastVolumeCall.current = Date.now();
+				pendingVolumeCall.current = null;
+				invoke("set_volume", { volume: newVol }).catch(console.error);
+			};
+			const remaining = 50 - (Date.now() - lastVolumeCall.current);
+			if (remaining <= 0) commit();
+			else pendingVolumeCall.current = window.setTimeout(commit, remaining);
 		},
 		[resetHideTimeout]
 	);
 
 	// ── Brightness Controls ──
 	const lastBrightnessCall = useRef(0);
+	const pendingBrightnessCall = useRef<number | null>(null);
 	const handleBrightnessChange = useCallback(
 		(newBrightness: number) => {
 			setBrightness(newBrightness);
 			setMode("brightness");
 			resetHideTimeout();
 
-			const now = Date.now();
-			if (now - lastBrightnessCall.current < 50) return;
-			lastBrightnessCall.current = now;
-			invoke("set_brightness", { brightness: Math.round(newBrightness) }).catch(() => {});
+			if (pendingBrightnessCall.current !== null) {
+				window.clearTimeout(pendingBrightnessCall.current);
+			}
+			const commit = () => {
+				lastBrightnessCall.current = Date.now();
+				pendingBrightnessCall.current = null;
+				invoke("set_brightness", { brightness: Math.round(newBrightness) }).catch(console.error);
+			};
+			const remaining = 50 - (Date.now() - lastBrightnessCall.current);
+			if (remaining <= 0) commit();
+			else pendingBrightnessCall.current = window.setTimeout(commit, remaining);
 		},
 		[resetHideTimeout]
 	);

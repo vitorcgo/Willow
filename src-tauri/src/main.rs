@@ -99,7 +99,6 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        // .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
@@ -193,14 +192,13 @@ fn main() {
                 NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);
             }
 
-            // Update check on startup (non-blocking). Always runs so the UI can
-            // show an update badge; auto-install only happens when the user
-            // enabled it and the release has aged past the rollout gate.
+            // Optional update check on startup. It runs in the background and
+            // only emits the indicator when a newer GitHub release exists.
             {
-                // let app_handle = app.handle().clone();
-                // tauri::async_runtime::spawn(async move {
-                //     updater::run_startup_check(app_handle).await;
-                // });
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    updater::run_startup_check(app_handle).await;
+                });
             }
 
             let window = app.get_webview_window("main").ok_or_else(|| {

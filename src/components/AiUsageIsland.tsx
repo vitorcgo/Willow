@@ -145,7 +145,10 @@ export function AiUsageIsland() {
 			setIslandOpen(false);
 			setCardOpen(false);
 		}
-	}, [mode]);
+		if (isTauriRuntime) {
+			invoke("change_ai_mode", { mode }).catch(console.error);
+		}
+	}, [isTauriRuntime, mode]);
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;

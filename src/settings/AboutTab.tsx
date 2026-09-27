@@ -49,7 +49,7 @@ export function AboutTab({
 
 	const getUpdateDesc = () =>
 		updateStatus === "available"
-			? "Clique para instalar e reiniciar"
+			? "Clique para abrir o download oficial"
 			: `Versão em uso v${appVersion}`;
 
 	const getExportLabel = () => {
@@ -74,7 +74,7 @@ export function AboutTab({
 
 			<div className="setting-group-label">Atualizações</div>
 			<div className="setting-group">
-				<SettingRow icon={Download} label="Atualização automática" desc="Atualiza automaticamente ao iniciar">
+				<SettingRow icon={Download} label="Verificar ao iniciar" desc="Avisa quando existir uma versão mais recente">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={autoUpdate} onChange={toggleAutoUpdate} />
 						<span className="slider"></span>

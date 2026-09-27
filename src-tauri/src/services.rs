@@ -855,12 +855,12 @@ pub fn setup_audio_visualization(app_handle: AppHandle) {
                                         {
                                             let mut total_mag = 0.0f32;
                                             let mut count = 0u32;
-                                            for bin in bin_start..bin_end {
-                                                if bin >= FFT_SIZE / 2 {
-                                                    break;
-                                                }
-                                                let mag = fft_input[bin].norm();
-                                                total_mag += mag;
+                                            for value in fft_input
+                                                .iter()
+                                                .take(bin_end.min(FFT_SIZE / 2))
+                                                .skip(bin_start)
+                                            {
+                                                total_mag += value.norm();
                                                 count += 1;
                                             }
                                             let avg_mag = total_mag / count.max(1) as f32;
@@ -3231,7 +3231,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                     let is_browser_pwa = is_browser_host
                         && window_aumid
                             .as_deref()
-                            .map_or(false, crate::commands::is_browser_pwa_aumid);
+                            .is_some_and(crate::commands::is_browser_pwa_aumid);
 
                     let final_name = if ((is_browser_host
                         && (is_browser_pwa || window_aumid.is_none()))

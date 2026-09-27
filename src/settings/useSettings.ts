@@ -312,9 +312,7 @@ export function useSettings() {
 
 	const installUpdate = async () => {
 		try {
-			setUpdateStatus("downloading");
 			await invoke("install_update");
-			setUpdateStatus("idle");
 		} catch (e) {
 			console.error(e);
 			setUpdateStatus("error");
