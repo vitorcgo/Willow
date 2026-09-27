@@ -2407,22 +2407,44 @@ unsafe extern "system" fn mouse_hook_proc(
 
                     let mut over_visible_content = false;
                     if AI_USAGE_OPEN.load(Ordering::Relaxed) {
-                        if let (Ok(win_pos), Ok(rect)) =
-                            (ai_win.outer_position(), AI_USAGE_RECT.try_lock())
-                        {
-                            if let Some(region) = *rect {
-                                let scale = ai_win.scale_factor().unwrap_or(1.0);
-                                let padding = (8.0 * scale) as i32;
-                                let rx = win_pos.x + (region.x as f64 * scale) as i32 - padding;
-                                let ry = win_pos.y + (region.y as f64 * scale) as i32 - padding;
-                                let rw = (region.width as f64 * scale) as i32 + padding * 2;
-                                let rh = (region.height as f64 * scale) as i32 + padding * 2;
-                                over_visible_content = cursor.x >= rx
-                                    && cursor.x <= rx + rw
-                                    && cursor.y >= ry
-                                    && cursor.y <= ry + rh;
+                        if let Ok(win_pos) = ai_win.outer_position() {
+                            let scale = ai_win.scale_factor().unwrap_or(1.0);
+                            let mut content_top = center_y - (120.0 * scale) as i32;
+                            let mut content_bottom = center_y + (120.0 * scale) as i32;
+
+                            if let Ok(rect) = AI_USAGE_RECT.try_lock() {
+                                if let Some(region) = *rect {
+                                    let padding = (14.0 * scale) as i32;
+                                    let rx = win_pos.x + (region.x as f64 * scale) as i32 - padding;
+                                    let ry = win_pos.y + (region.y as f64 * scale) as i32 - padding;
+                                    let rw = (region.width as f64 * scale) as i32 + padding * 2;
+                                    let rh = (region.height as f64 * scale) as i32 + padding * 2;
+                                    content_top = ry;
+                                    content_bottom = ry + rh;
+                                    over_visible_content = cursor.x >= rx
+                                        && cursor.x <= rx + rw
+                                        && cursor.y >= ry
+                                        && cursor.y <= ry + rh;
+                                }
+                            }
+
+                            // While the pill slides in, the last DOM rectangle can
+                            // still point outside the screen. This physical corridor
+                            // lets the cursor travel from the edge to every icon.
+                            if let Ok(win_size) = ai_win.outer_size() {
+                                let window_right = win_pos.x + win_size.width as i32;
+                                let corridor_width = (96.0 * scale) as i32;
+                                let over_pill_corridor = cursor.x >= window_right - corridor_width
+                                    && cursor.x <= window_right
+                                    && cursor.y >= content_top
+                                    && cursor.y <= content_bottom;
+                                over_visible_content |= over_pill_corridor;
                             }
                         }
+                    }
+
+                    if over_visible_content {
+                        MH_AI_EXPIRY_MS.store(now + 650, Ordering::Relaxed);
                     }
 
                     let ai_hover = at_ai_edge
@@ -2435,7 +2457,10 @@ unsafe extern "system" fn mouse_hook_proc(
                         }
                     }
 
-                    let should_ignore = !(at_ai_edge || over_visible_content);
+                    // Keep input enabled during the edge-to-pill grace period.
+                    // Otherwise the animated icon becomes click-through before the
+                    // cursor reaches it.
+                    let should_ignore = !ai_hover;
                     let next_ignore = if should_ignore { 1 } else { 0 };
                     if MH_LAST_AI_IGNORE.swap(next_ignore, Ordering::Relaxed) != next_ignore {
                         if let Ok(hwnd) = ai_win.hwnd() {
@@ -3175,8 +3200,9 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                         || window_class == "ExploreWClass"
                         || (window_class == "#32770" && dialog_has_tab_control(hwnd));
 
-                    // Filter out Willow itself (except the Settings window) and some common background processes
-                    if (lowercase_path.contains("willow.exe") && title != "Settings")
+                    // Willow owns a dedicated centered logo in the dock. None of
+                    // its auxiliary windows should appear as duplicate app items.
+                    if lowercase_path.contains("willow.exe")
                         || lowercase_path.contains("conhost.exe")
                         || (lowercase_path.contains("explorer.exe") && !is_explorer_window)
                         || lowercase_path.contains("shellexperiencehost.exe")

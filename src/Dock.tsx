@@ -251,7 +251,9 @@ const Dock = memo(function Dock() {
 			const scaleVal = getVal("willow-scale");
 			if (scaleVal !== null) setScale(parseFloat(scaleVal));
 
-			const pinned = await invoke<AppInfo[]>("load_pinned_apps");
+			const pinned = (await invoke<AppInfo[]>("load_pinned_apps")).filter(
+				(app) => app.path.toLowerCase() !== "willow-settings"
+			);
 			setPinnedApps(pinned.map((a) => ({ ...a, is_pinned: true })));
 			pinned.forEach((app) => fetchIcon(app.path));
 

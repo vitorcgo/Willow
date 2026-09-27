@@ -1663,8 +1663,17 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
         .app_config_dir()
         .unwrap_or_default()
         .join("pinned_apps.json");
-    if let Ok(content) = std::fs::read_to_string(path) {
-        if let Ok(apps) = serde_json::from_str(&content) {
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(mut apps) = serde_json::from_str::<Vec<AppInfo>>(&content) {
+            // Older versions pinned a second Settings item. The centered Willow
+            // logo already owns this action, so migrate the duplicate away.
+            let previous_len = apps.len();
+            apps.retain(|item| !item.path.eq_ignore_ascii_case("willow-settings"));
+            if apps.len() != previous_len {
+                if let Ok(updated) = serde_json::to_string(&apps) {
+                    let _ = std::fs::write(&path, updated);
+                }
+            }
             return apps;
         }
     }
@@ -1694,15 +1703,6 @@ pub async fn load_pinned_apps(app: AppHandle) -> Vec<AppInfo> {
             is_running: false,
             hwnd: None,
             executable: Some("notepad.exe".into()),
-            all_hwnds: None,
-        },
-        AppInfo {
-            name: "Settings".into(),
-            path: "willow-settings".into(),
-            icon: None,
-            is_running: false,
-            hwnd: None,
-            executable: None,
             all_hwnds: None,
         },
     ]

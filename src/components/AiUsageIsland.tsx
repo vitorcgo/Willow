@@ -168,16 +168,37 @@ export function AiUsageIsland() {
 			const right = Math.max(...boxes.map((box) => box.right));
 			const bottom = Math.max(...boxes.map((box) => box.bottom));
 			invoke("update_ai_usage_rect", {
-				rect: { x: left, y: top, width: right - left, height: bottom - top }
+				rect: {
+					x: Math.floor(left),
+					y: Math.floor(top),
+					width: Math.ceil(right) - Math.floor(left),
+					height: Math.ceil(bottom) - Math.floor(top)
+				}
 			}).catch(() => {});
 		};
 
 		const frame = window.requestAnimationFrame(reportBounds);
+		// CSS transforms do not trigger ResizeObserver. Follow the slide-in
+		// animation so native hit-testing never keeps the collapsed rectangle.
+		const measureTimers = [60, 160, 280, 420].map((delay) =>
+			window.setTimeout(reportBounds, delay)
+		);
 		const observer = new ResizeObserver(reportBounds);
-		if (pillRef.current) observer.observe(pillRef.current);
-		if (cardRef.current) observer.observe(cardRef.current);
+		const pill = pillRef.current;
+		const card = cardRef.current;
+		if (pill) {
+			observer.observe(pill);
+			pill.addEventListener("transitionend", reportBounds);
+		}
+		if (card) {
+			observer.observe(card);
+			card.addEventListener("transitionend", reportBounds);
+		}
 		return () => {
 			window.cancelAnimationFrame(frame);
+			measureTimers.forEach(window.clearTimeout);
+			pill?.removeEventListener("transitionend", reportBounds);
+			card?.removeEventListener("transitionend", reportBounds);
 			observer.disconnect();
 		};
 	}, [isTauriRuntime, islandOpen, cardOpen]);
@@ -211,7 +232,10 @@ export function AiUsageIsland() {
 			onMouseEnter={() => mode !== "hidden" && setIslandOpen(true)}
 			onMouseLeave={() => {
 				setCardOpen(false);
-				if (mode === "smart") setIslandOpen(false);
+				// In the installed app the native hit-test owns smart closing and
+				// includes the animated edge-to-pill corridor. Closing here would
+				// collapse the island while the cursor crosses that small gap.
+				if (mode === "smart" && !isTauriRuntime) setIslandOpen(false);
 			}}
 		>
 			<div className="ai-edge-sensor" aria-hidden="true" />
