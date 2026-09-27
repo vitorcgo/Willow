@@ -45,6 +45,48 @@ pub async fn update_notch_rect(rect: IntRect) {
 }
 
 #[tauri::command]
+pub fn set_ai_usage_state(open: bool, card_open: bool) {
+    AI_USAGE_OPEN.store(open, Ordering::Relaxed);
+    AI_USAGE_CARD_OPEN.store(card_open && open, Ordering::Relaxed);
+}
+
+#[tauri::command]
+pub fn update_ai_usage_rect(rect: Option<IntRect>) {
+    if let Ok(mut current) = AI_USAGE_RECT.lock() {
+        *current = rect;
+    }
+}
+
+#[tauri::command]
+pub fn change_ai_mode(app: AppHandle, mode: String) -> Result<(), String> {
+    let normalized = match mode.as_str() {
+        "hidden" => 0,
+        "smart" => 1,
+        "fixed" => 2,
+        _ => return Err("Modo de IA inválido".to_string()),
+    };
+
+    AI_USAGE_MODE.store(normalized, Ordering::Relaxed);
+    AI_USAGE_OPEN.store(normalized == 2, Ordering::Relaxed);
+    AI_USAGE_CARD_OPEN.store(false, Ordering::Relaxed);
+
+    if let Some(window) = app.get_webview_window("ai-usage") {
+        if normalized == 0 {
+            let _ = window.set_ignore_cursor_events(true);
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            // The native mouse hook enables input only over the visible island.
+            // This keeps the rest of the transparent window click-through.
+            let _ = window.set_ignore_cursor_events(true);
+        }
+    }
+
+    let _ = app.emit("ai-mode-changed", mode);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_window_height(window: Window, height: f64) {
     if let Ok(scale_factor) = window.scale_factor() {
         if let Ok(physical_size) = window.inner_size() {
@@ -2434,17 +2476,27 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let mut settings = HashMap::new();
-    if let Ok(content) = std::fs::read_to_string(&path) {
-        if let Ok(existing) = serde_json::from_str::<HashMap<String, serde_json::Value>>(&content) {
-            settings = existing;
+    // Every settings control can save from a different WebView. Serialize the
+    // complete read/modify/write cycle so two quick changes cannot overwrite
+    // each other with stale copies of settings.json.
+    let mut cache = crate::state::SETTINGS_CACHE
+        .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if cache.is_empty() {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(existing) =
+                serde_json::from_str::<HashMap<String, serde_json::Value>>(&content)
+            {
+                *cache = existing;
+            }
         }
     }
-    settings.insert(key.clone(), value);
+    cache.insert(key.clone(), value);
+    let settings = cache.clone();
     let content = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
     std::fs::write(path, content).map_err(|e| e.to_string())?;
-
-    crate::utils::replace_settings_cache(settings.clone());
+    drop(cache);
 
     // Broadcast so all windows sync — emit the key as-is (willow-prefixed)
     let _ = app.emit(
@@ -2669,7 +2721,7 @@ pub fn open_airplane_mode_settings() {
 }
 
 #[tauri::command]
-pub fn set_brightness(app: AppHandle, brightness: u32) {
+pub fn set_brightness(app: AppHandle, brightness: u32) -> Result<(), String> {
     let val = brightness.min(100);
     crate::state::CURRENT_BRIGHTNESS.store(val, Ordering::Relaxed);
     crate::state::LAST_BRIGHTNESS_CHANGE.store(crate::utils::get_now_ms(), Ordering::Relaxed);
@@ -2678,7 +2730,11 @@ pub fn set_brightness(app: AppHandle, brightness: u32) {
         BrightnessChangeEvent { brightness: val },
     );
     if let Some(tx) = crate::state::BRIGHTNESS_SENDER.get() {
-        let _ = tx.send(val);
+        tx.send(val)
+            .map_err(|_| "O serviço de brilho não está respondendo".to_string())?;
+        Ok(())
+    } else {
+        Err("O serviço de brilho ainda não foi iniciado".to_string())
     }
 }
 

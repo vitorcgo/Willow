@@ -69,7 +69,7 @@
 				"focus": false,
 				"skipTaskbar": true,
 				"shadow": false,
-				"visible": true
+				"visible": false
 			},
 			{
 				"label": "overlay",
@@ -128,7 +128,16 @@
 			"icons/128x128@2x.png",
 			"icons/icon.icns",
 			"icons/icon.ico"
-		]
+		],
+		"windows": {
+			"nsis": {
+				"installerHooks": "./windows/installer-hooks.nsh"
+			}
+		}
 	},
-	"plugins": {}
+	"plugins": {
+		"updater": {
+			"active": false
+		}
+	}
 }

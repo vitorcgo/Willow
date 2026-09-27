@@ -77,6 +77,7 @@ export function useSettings() {
 		return raw === "auto-hide" ? "smart" : raw;
 	});
 	const [notchMode, setNotchMode] = useState("fixed");
+	const [aiMode, setAiMode] = useState(() => localStorage.getItem("willow-ai-mode") || "smart");
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(20);
 	const [updateStatus, setUpdateStatus] = useState<
 		"idle" | "checking" | "available" | "uptodate" | "error" | "downloading" | "installing"
@@ -159,6 +160,9 @@ export function useSettings() {
 
 			apply(getVal("willow-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("willow-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
+			apply(getVal("willow-ai-mode"), setAiMode, (v) =>
+				["fixed", "smart", "hidden"].includes(v) ? v : "smart"
+			);
 
 			const savedCity = getVal("willow-weather-city");
 			if (savedCity) setCityName(savedCity);
@@ -202,6 +206,7 @@ export function useSettings() {
 	useSettingsSync({
 		"willow-dock-mode": setDockMode,
 		"willow-notch-mode": setNotchMode,
+		"willow-ai-mode": setAiMode,
 		"willow-dock-enabled": setDockEnabled,
 		"willow-dock-icon-only": setDockIconOnly,
 		"willow-dock-preview-enabled": setDockPreviewEnabled,
@@ -498,6 +503,13 @@ export function useSettings() {
 		saveSetting("willow-notch-mode", newMode);
 	};
 
+	const setAiModeValue = (newMode: string) => {
+		if (!["fixed", "smart", "hidden"].includes(newMode)) return;
+		setAiMode(newMode);
+		saveSetting("willow-ai-mode", newMode);
+		invoke("change_ai_mode", { mode: newMode }).catch(console.error);
+	};
+
 	const handleThresholdChange = (val: number) => {
 		setLowBatteryThreshold(val);
 		saveSetting("willow-low-battery-threshold", val.toString());
@@ -684,6 +696,8 @@ export function useSettings() {
 		// Notch
 		notchMode,
 		setNotchModeValue,
+		aiMode,
+		setAiModeValue,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,

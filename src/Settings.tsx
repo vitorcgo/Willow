@@ -193,7 +193,9 @@ function SettingsApp() {
 							toggleDockWinNumber={settings.toggleDockWinNumber}
 						/>
 					)}
-					{activeTab === "ai-usage" && <AiUsageTab />}
+					{activeTab === "ai-usage" && (
+						<AiUsageTab aiMode={settings.aiMode} setAiModeValue={settings.setAiModeValue} />
+					)}
 					{activeTab === "overlays" && (
 						<OverlaysTab
 							volumeOverlayEnabled={settings.volumeOverlayEnabled}

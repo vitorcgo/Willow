@@ -99,7 +99,7 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
@@ -131,6 +131,9 @@ fn main() {
             launch_new_instance,
             update_dock_rect,
             update_notch_rect,
+            set_ai_usage_state,
+            update_ai_usage_rect,
+            change_ai_mode,
             set_dock_hovered,
             set_notch_hovered,
             get_active_windows,
@@ -194,10 +197,10 @@ fn main() {
             // show an update badge; auto-install only happens when the user
             // enabled it and the release has aged past the rollout gate.
             {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    updater::run_startup_check(app_handle).await;
-                });
+                // let app_handle = app.handle().clone();
+                // tauri::async_runtime::spawn(async move {
+                //     updater::run_startup_check(app_handle).await;
+                // });
             }
 
             let window = app.get_webview_window("main").ok_or_else(|| {
@@ -309,7 +312,7 @@ fn main() {
             // the primary monitor's right edge.
             if let Some(ai_win) = app.get_webview_window("ai-usage") {
                 place_ai_usage_window(&ai_win);
-                let _ = ai_win.show();
+                let _ = ai_win.set_ignore_cursor_events(true);
                 let window_for_events = ai_win.clone();
                 ai_win.on_window_event(move |event| match event {
                     tauri::WindowEvent::ScaleFactorChanged { .. } => {
@@ -333,6 +336,10 @@ fn main() {
                     let notch_mode = get_setting_str(&startup_handle, "willow-notch-mode")
                         .unwrap_or_else(|| "fixed".to_string());
                     change_notch_mode(startup_handle.clone(), notch_mode).await;
+
+                    let ai_mode = get_setting_str(&startup_handle, "willow-ai-mode")
+                        .unwrap_or_else(|| "smart".to_string());
+                    let _ = change_ai_mode(startup_handle.clone(), ai_mode);
 
                     let dock_enabled = get_setting_str(&startup_handle, "willow-dock-enabled")
                         .unwrap_or_else(|| "true".to_string())
@@ -361,13 +368,23 @@ fn main() {
                 let _ = crate::state::INSTALLED_APPS_CACHE.set(std::sync::Mutex::new(Vec::new()));
             }
             setup_thumbnail_capture(app.handle().clone());
-            trigger_app_scan();
             let tx = setup_system_worker(app.handle().clone());
             let _ = COMMAND_SENDER.set(tx.clone());
             let _hook = services::setup_keyboard_hook(app.handle().clone());
             setup_taskbar_hook();
-            setup_audio_visualization(app.handle().clone());
             setup_settings_watcher(app.handle().clone());
+
+            // Scanning installed apps and opening loopback audio are the two
+            // heaviest cold-start jobs. Defer them until the shell is already
+            // visible so first launch after installation stays responsive.
+            {
+                let audio_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1800));
+                    trigger_app_scan();
+                    setup_audio_visualization(audio_handle);
+                });
+            }
 
             // Listen for second-instance signal to open settings
             if let Some(&h_event) = SINGLE_INSTANCE_EVENT_HANDLE.get() {

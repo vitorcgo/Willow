@@ -18,6 +18,12 @@ pub static DOCK_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static NOTCH_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static DOCK_IS_HOVERED: AtomicBool = AtomicBool::new(false);
 pub static NOTCH_IS_HOVERED: AtomicBool = AtomicBool::new(false);
+// AI side island runtime state. 0 = hidden, 1 = smart, 2 = fixed.
+// Keeping this native avoids reading settings.json on every mouse movement.
+pub static AI_USAGE_MODE: AtomicI32 = AtomicI32::new(1);
+pub static AI_USAGE_OPEN: AtomicBool = AtomicBool::new(false);
+pub static AI_USAGE_CARD_OPEN: AtomicBool = AtomicBool::new(false);
+pub static AI_USAGE_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static MENU_IS_OPEN: AtomicBool = AtomicBool::new(false);
 pub static MENU_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static ICON_CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();

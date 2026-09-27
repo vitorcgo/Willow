@@ -1715,11 +1715,16 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
     tx
 }
 
-fn set_physical_monitors_brightness(brightness: u32) {
+fn set_physical_monitors_brightness(brightness: u32) -> bool {
     unsafe {
         use windows::core::BOOL;
         use windows::Win32::Foundation::{LPARAM, RECT};
         use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
+
+        struct BrightnessContext {
+            brightness: u32,
+            applied: bool,
+        }
 
         unsafe extern "system" fn monitor_enum_proc(
             hmonitor: HMONITOR,
@@ -1727,7 +1732,8 @@ fn set_physical_monitors_brightness(brightness: u32) {
             _: *mut RECT,
             lparam: LPARAM,
         ) -> BOOL {
-            let brightness = lparam.0 as u32;
+            let context = &mut *(lparam.0 as *mut BrightnessContext);
+            let brightness = context.brightness;
             #[repr(C)]
             #[derive(Clone, Copy)]
             struct PHYSICAL_MONITOR {
@@ -1760,7 +1766,9 @@ fn set_physical_monitors_brightness(brightness: u32) {
                 {
                     for mon in &monitors {
                         if mon.h_physical_monitor != 0 {
-                            let _ = SetMonitorBrightness(mon.h_physical_monitor, brightness);
+                            if SetMonitorBrightness(mon.h_physical_monitor, brightness).as_bool() {
+                                context.applied = true;
+                            }
                         }
                     }
                     let _ = DestroyPhysicalMonitors(count, monitors.as_mut_ptr());
@@ -1769,12 +1777,17 @@ fn set_physical_monitors_brightness(brightness: u32) {
             true.into()
         }
 
+        let mut context = BrightnessContext {
+            brightness,
+            applied: false,
+        };
         let _ = EnumDisplayMonitors(
             None,
             None,
             Some(monitor_enum_proc),
-            LPARAM(brightness as isize),
+            LPARAM(&mut context as *mut BrightnessContext as isize),
         );
+        context.applied
     }
 }
 
@@ -1793,95 +1806,94 @@ pub fn setup_brightness_worker() {
 
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
 
-        let locator: IWbemLocator = match CoCreateInstance(&WbemLocator, None, CLSCTX_ALL) {
-            Ok(l) => l,
-            Err(_) => {
-                let _ = CoUninitialize();
-                return;
-            }
-        };
         let ns = windows::core::BSTR::from("root\\WMI");
         let empty_bstr = windows::core::BSTR::new();
-        let services = match locator.ConnectServer(
-            &ns,
-            &empty_bstr,
-            &empty_bstr,
-            &empty_bstr,
-            0,
-            &empty_bstr,
-            None,
-        ) {
-            Ok(s) => s,
-            Err(_) => {
-                let _ = CoUninitialize();
-                return;
-            }
-        };
+        // WMI is optional. Desktop PCs frequently do not expose root\\WMI;
+        // DDC/CI must still be attempted for external monitors in that case.
+        let services = CoCreateInstance(&WbemLocator, None, CLSCTX_ALL)
+            .ok()
+            .and_then(|locator: IWbemLocator| {
+                locator
+                    .ConnectServer(
+                        &ns,
+                        &empty_bstr,
+                        &empty_bstr,
+                        &empty_bstr,
+                        0,
+                        &empty_bstr,
+                        None,
+                    )
+                    .ok()
+            });
 
         while let Ok(brightness) = rx.recv() {
             let brightness = brightness.min(100);
             // 1. Laptop internal panel via WMI WmiMonitorBrightnessMethods
             let wql = windows::core::BSTR::from("WQL");
             let q = windows::core::BSTR::from("SELECT * FROM WmiMonitorBrightnessMethods");
-            if let Ok(enum_obj) = services.ExecQuery(&wql, &q, WBEM_GENERIC_FLAG_TYPE(0), None) {
-                let mut row = [None::<IWbemClassObject>; 1];
-                let mut returned = 0u32;
-                while enum_obj.Next(-1i32, &mut row, &mut returned).is_ok() && returned > 0 {
-                    if let Some(obj) = row[0].take() {
-                        let mut var = VARIANT::default();
-                        if obj
-                            .Get(windows::core::w!("__RELPATH"), 0i32, &mut var, None, None)
-                            .is_ok()
-                        {
-                            let relpath_str = var.Anonymous.Anonymous.Anonymous.bstrVal.to_string();
-                            let _ = VariantClear(&mut var);
-                            if !relpath_str.is_empty() {
-                                let obj_path = windows::core::BSTR::from(relpath_str.as_str());
-                                let method_name = windows::core::BSTR::from("WmiSetBrightness");
+            if let Some(services) = services.as_ref() {
+                if let Ok(enum_obj) = services.ExecQuery(&wql, &q, WBEM_GENERIC_FLAG_TYPE(0), None)
+                {
+                    let mut row = [None::<IWbemClassObject>; 1];
+                    let mut returned = 0u32;
+                    while enum_obj.Next(-1i32, &mut row, &mut returned).is_ok() && returned > 0 {
+                        if let Some(obj) = row[0].take() {
+                            let mut var = VARIANT::default();
+                            if obj
+                                .Get(windows::core::w!("__RELPATH"), 0i32, &mut var, None, None)
+                                .is_ok()
+                            {
+                                let relpath_str =
+                                    var.Anonymous.Anonymous.Anonymous.bstrVal.to_string();
+                                let _ = VariantClear(&mut var);
+                                if !relpath_str.is_empty() {
+                                    let obj_path = windows::core::BSTR::from(relpath_str.as_str());
+                                    let method_name = windows::core::BSTR::from("WmiSetBrightness");
 
-                                let mut in_cls: Option<IWbemClassObject> = None;
-                                if obj
-                                    .GetMethod(
-                                        windows::core::w!("WmiSetBrightness"),
-                                        0i32,
-                                        &mut in_cls,
-                                        std::ptr::null_mut(),
-                                    )
-                                    .is_ok()
-                                {
-                                    if let Some(in_cls) = in_cls {
-                                        if let Ok(in_params) = in_cls.SpawnInstance(0i32) {
-                                            let mut b_var = VARIANT::default();
-                                            let b_anon = &mut b_var.Anonymous.Anonymous;
-                                            b_anon.vt = VARENUM(17); // VT_UI1
-                                            b_anon.Anonymous.bVal = brightness as u8;
-                                            let _ = in_params.Put(
-                                                windows::core::w!("Brightness"),
-                                                0i32,
-                                                &b_var,
-                                                0,
-                                            );
+                                    let mut in_cls: Option<IWbemClassObject> = None;
+                                    if obj
+                                        .GetMethod(
+                                            windows::core::w!("WmiSetBrightness"),
+                                            0i32,
+                                            &mut in_cls,
+                                            std::ptr::null_mut(),
+                                        )
+                                        .is_ok()
+                                    {
+                                        if let Some(in_cls) = in_cls {
+                                            if let Ok(in_params) = in_cls.SpawnInstance(0i32) {
+                                                let mut b_var = VARIANT::default();
+                                                let b_anon = &mut b_var.Anonymous.Anonymous;
+                                                b_anon.vt = VARENUM(17); // VT_UI1
+                                                b_anon.Anonymous.bVal = brightness as u8;
+                                                let _ = in_params.Put(
+                                                    windows::core::w!("Brightness"),
+                                                    0i32,
+                                                    &b_var,
+                                                    0,
+                                                );
 
-                                            let mut t_var = VARIANT::default();
-                                            let t_anon = &mut t_var.Anonymous.Anonymous;
-                                            t_anon.vt = VARENUM(3); // VT_I4
-                                            t_anon.Anonymous.lVal = 0i32;
-                                            let _ = in_params.Put(
-                                                windows::core::w!("Timeout"),
-                                                0i32,
-                                                &t_var,
-                                                0,
-                                            );
+                                                let mut t_var = VARIANT::default();
+                                                let t_anon = &mut t_var.Anonymous.Anonymous;
+                                                t_anon.vt = VARENUM(3); // VT_I4
+                                                t_anon.Anonymous.lVal = 0i32;
+                                                let _ = in_params.Put(
+                                                    windows::core::w!("Timeout"),
+                                                    0i32,
+                                                    &t_var,
+                                                    0,
+                                                );
 
-                                            let _ = services.ExecMethod(
-                                                &obj_path,
-                                                &method_name,
-                                                WBEM_GENERIC_FLAG_TYPE(0),
-                                                None,
-                                                Some(&in_params),
-                                                None,
-                                                None,
-                                            );
+                                                let _ = services.ExecMethod(
+                                                    &obj_path,
+                                                    &method_name,
+                                                    WBEM_GENERIC_FLAG_TYPE(0),
+                                                    None,
+                                                    Some(&in_params),
+                                                    None,
+                                                    None,
+                                                );
+                                            }
                                         }
                                     }
                                 }
@@ -1892,7 +1904,7 @@ pub fn setup_brightness_worker() {
             }
 
             // 2. Desktop external monitor via Physical Monitor API (DXVA2 DDC/CI)
-            set_physical_monitors_brightness(brightness);
+            let _ = set_physical_monitors_brightness(brightness);
         }
         let _ = CoUninitialize();
     });
@@ -1902,6 +1914,8 @@ static MOUSE_HOOK_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 static MH_LAST_MAIN_IGNORE: AtomicI32 = AtomicI32::new(-1);
 static MH_LAST_DOCK_IGNORE: AtomicI32 = AtomicI32::new(-1);
 static MH_LAST_OV_IGNORE: AtomicI32 = AtomicI32::new(-1);
+static MH_LAST_AI_IGNORE: AtomicI32 = AtomicI32::new(-1);
+static MH_LAST_AI_EDGE_HOVER: AtomicI32 = AtomicI32::new(-1);
 static MH_LAST_EDGE_HOVER: AtomicI32 = AtomicI32::new(-1);
 static MH_LAST_TOP_EDGE_HOVER: AtomicI32 = AtomicI32::new(-1);
 static MH_LAST_LEFT_EDGE_HOVER: AtomicI32 = AtomicI32::new(-1);
@@ -1910,6 +1924,7 @@ static MH_DOCK_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_TOPBAR_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LEFT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_RIGHT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
+static MH_AI_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LAST_MONITOR_UPDATE_MS: AtomicI64 = AtomicI64::new(0);
 static MH_CACHED_MON_POS: Mutex<Option<(i32, i32)>> = Mutex::new(None);
 static MH_CACHED_MON_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
@@ -1923,6 +1938,19 @@ fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as i64
+}
+
+fn cached_setting_is_true(key: &str, default: bool) -> bool {
+    SETTINGS_CACHE
+        .get()
+        .and_then(|cache| cache.try_lock().ok())
+        .and_then(|settings| settings.get(key).cloned())
+        .map(|value| match value {
+            serde_json::Value::Bool(value) => value,
+            serde_json::Value::String(value) => value == "true",
+            _ => default,
+        })
+        .unwrap_or(default)
 }
 
 /// True while a screen-capture UI (Windows Snipping Tool) has a visible window.
@@ -2018,13 +2046,15 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
     MH_LAST_MAIN_IGNORE.store(-1, Ordering::Relaxed);
     MH_LAST_DOCK_IGNORE.store(-1, Ordering::Relaxed);
     MH_LAST_OV_IGNORE.store(-1, Ordering::Relaxed);
+    MH_LAST_AI_IGNORE.store(-1, Ordering::Relaxed);
 }
 
 pub fn setup_mouse_hook(app_handle: AppHandle) {
     let _ = MOUSE_HOOK_APP_HANDLE.set(app_handle);
     unsafe {
-        SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0)
-            .expect("Failed to install mouse hook");
+        if let Err(error) = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0) {
+            eprintln!("Não foi possível iniciar o controle de interação do Willow: {error}");
+        }
     }
 }
 
@@ -2068,6 +2098,12 @@ unsafe extern "system" fn mouse_hook_proc(
                         let _ = w.set_ignore_cursor_events(true);
                     }
                     MH_LAST_OV_IGNORE.store(1, Ordering::Relaxed);
+                }
+                if MH_LAST_AI_IGNORE.load(Ordering::Relaxed) != 1 {
+                    if let Some(w) = app_handle.get_webview_window("ai-usage") {
+                        let _ = w.set_ignore_cursor_events(true);
+                    }
+                    MH_LAST_AI_IGNORE.store(1, Ordering::Relaxed);
                 }
                 if MH_LAST_EDGE_HOVER.swap(0, Ordering::Relaxed) != 0 {
                     let _ = app_handle.emit("dock-edge-hover", false);
@@ -2339,10 +2375,81 @@ unsafe extern "system" fn mouse_hook_proc(
                 }
             }
 
+            // --- AI side island interaction ---
+            // The WebView is wider than the visible island so its details card has
+            // room to open. Native hit-testing keeps every transparent pixel from
+            // stealing clicks from applications underneath it.
+            let ai_mode = AI_USAGE_MODE.load(Ordering::Relaxed);
+            if ai_mode == 0 || fg_fs {
+                if let Some(ai_win) = app_handle.get_webview_window("ai-usage") {
+                    if MH_LAST_AI_IGNORE.load(Ordering::Relaxed) != 1 {
+                        let _ = ai_win.set_ignore_cursor_events(true);
+                        MH_LAST_AI_IGNORE.store(1, Ordering::Relaxed);
+                    }
+                }
+                if MH_LAST_AI_EDGE_HOVER.swap(0, Ordering::Relaxed) != 0 {
+                    let _ = app_handle.emit("ai-edge-hover", false);
+                }
+            } else if let Some(ai_win) = app_handle.get_webview_window("ai-usage") {
+                if ai_win.is_visible().unwrap_or(false) {
+                    let center_y = mon_y + mon_h / 2;
+                    let at_ai_edge = ai_mode == 1
+                        && cursor.x >= mon_x + mon_w - 8
+                        && cursor.x <= mon_x + mon_w
+                        && cursor.y >= center_y - 100
+                        && cursor.y <= center_y + 100;
+
+                    if at_ai_edge {
+                        MH_AI_EXPIRY_MS.store(now + 450, Ordering::Relaxed);
+                    }
+
+                    let mut over_visible_content = false;
+                    if AI_USAGE_OPEN.load(Ordering::Relaxed) {
+                        if let (Ok(win_pos), Ok(rect)) =
+                            (ai_win.outer_position(), AI_USAGE_RECT.try_lock())
+                        {
+                            if let Some(region) = *rect {
+                                let scale = ai_win.scale_factor().unwrap_or(1.0);
+                                let padding = (8.0 * scale) as i32;
+                                let rx = win_pos.x + (region.x as f64 * scale) as i32 - padding;
+                                let ry = win_pos.y + (region.y as f64 * scale) as i32 - padding;
+                                let rw = (region.width as f64 * scale) as i32 + padding * 2;
+                                let rh = (region.height as f64 * scale) as i32 + padding * 2;
+                                over_visible_content = cursor.x >= rx
+                                    && cursor.x <= rx + rw
+                                    && cursor.y >= ry
+                                    && cursor.y <= ry + rh;
+                            }
+                        }
+                    }
+
+                    let ai_hover = at_ai_edge
+                        || over_visible_content
+                        || now < MH_AI_EXPIRY_MS.load(Ordering::Relaxed);
+                    if ai_mode == 1 {
+                        let next = if ai_hover { 1 } else { 0 };
+                        if MH_LAST_AI_EDGE_HOVER.swap(next, Ordering::Relaxed) != next {
+                            let _ = app_handle.emit("ai-edge-hover", ai_hover);
+                        }
+                    }
+
+                    let should_ignore = !(at_ai_edge || over_visible_content);
+                    let next_ignore = if should_ignore { 1 } else { 0 };
+                    if MH_LAST_AI_IGNORE.swap(next_ignore, Ordering::Relaxed) != next_ignore {
+                        if let Ok(hwnd) = ai_win.hwnd() {
+                            re_assert_topmost(hwnd);
+                        }
+                        let _ = ai_win.set_ignore_cursor_events(should_ignore);
+                    }
+                }
+            }
+
             // --- Left Edge (Volume) ---
             if !fg_fs {
-                let at_left_edge =
-                    cursor.x <= (mon_x + 8) && cursor.y >= mon_y && cursor.y <= (mon_y + mon_h);
+                let at_left_edge = cached_setting_is_true("willow-volume-edge-enabled", false)
+                    && cursor.x <= (mon_x + 8)
+                    && cursor.y >= mon_y
+                    && cursor.y <= (mon_y + mon_h);
 
                 if at_left_edge {
                     MH_LEFT_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
@@ -2365,7 +2472,12 @@ unsafe extern "system" fn mouse_hook_proc(
 
             // --- Right Edge (Brightness) ---
             if !fg_fs {
-                let at_right_edge = cursor.x >= (mon_x + mon_w - 8)
+                let overlaps_ai_sensor = AI_USAGE_MODE.load(Ordering::Relaxed) != 0
+                    && cursor.y >= mon_y + mon_h / 2 - 100
+                    && cursor.y <= mon_y + mon_h / 2 + 100;
+                let at_right_edge = cached_setting_is_true("willow-brightness-edge-enabled", false)
+                    && !overlaps_ai_sensor
+                    && cursor.x >= (mon_x + mon_w - 8)
                     && cursor.y >= mon_y
                     && cursor.y <= (mon_y + mon_h);
 
@@ -2400,7 +2512,8 @@ unsafe extern "system" fn mouse_hook_proc(
                         MH_LAST_OV_IGNORE.store(1, Ordering::Relaxed);
                     }
                 } else {
-                    let over_left = if let Ok(Some(m)) = ov_win.primary_monitor() {
+                    let over_left = if cached_setting_is_true("willow-volume-edge-enabled", false) {
+                      if let Ok(Some(m)) = ov_win.primary_monitor() {
                         let ms = m.size();
                         let mp = m.position();
                         let sc = m.scale_factor();
@@ -2414,9 +2527,11 @@ unsafe extern "system" fn mouse_hook_proc(
                             && cursor.y <= ny + nh
                     } else {
                         false
-                    };
+                      }
+                    } else { false };
 
-                    let over_right = if let Ok(Some(m)) = ov_win.primary_monitor() {
+                    let over_right = if cached_setting_is_true("willow-brightness-edge-enabled", false) {
+                      if let Ok(Some(m)) = ov_win.primary_monitor() {
                         let ms = m.size();
                         let mp = m.position();
                         let sc = m.scale_factor();
@@ -2430,7 +2545,8 @@ unsafe extern "system" fn mouse_hook_proc(
                             && cursor.y <= ny + nh
                     } else {
                         false
-                    };
+                      }
+                    } else { false };
 
                     let should_ignore = !(over_left || over_right);
                     let prev = MH_LAST_OV_IGNORE.load(Ordering::Relaxed);

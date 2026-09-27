@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { RefreshCw, ShieldCheck } from "lucide-react";
+import { PanelRight, RefreshCw, ShieldCheck } from "lucide-react";
 import type { ProviderUsage } from "../types/aiUsage";
 import { SettingRow } from "./SettingRow";
 
-export function AiUsageTab() {
+interface AiUsageTabProps {
+	aiMode: string;
+	setAiModeValue: (mode: string) => void;
+}
+
+export function AiUsageTab({ aiMode, setAiModeValue }: AiUsageTabProps) {
 	const [providers, setProviders] = useState<ProviderUsage[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
@@ -28,6 +33,26 @@ export function AiUsageTab() {
 
 	return (
 		<>
+			<div className="setting-group-label">ILHA DE IA</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={PanelRight}
+					label="Comportamento"
+					desc="Controle quando o painel lateral aparece"
+					divider={false}
+				>
+					<select
+						className="settings-select"
+						value={aiMode}
+						onChange={(event) => setAiModeValue(event.target.value)}
+					>
+						<option value="fixed">Fixo</option>
+						<option value="smart">Inteligente</option>
+						<option value="hidden">Oculto</option>
+					</select>
+				</SettingRow>
+			</div>
+
 			<div className="setting-group-label">MONITORAMENTO</div>
 			<div className="setting-group">
 				<SettingRow

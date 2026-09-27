@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { RefreshCw } from "lucide-react";
 import type { ProviderUsage, UsageWindow } from "../types/aiUsage";
 import "./AiUsageIsland.css";
+import { useSettingsSync } from "../hooks/useSettingsSync";
 
 const PROVIDERS = [
 	{ id: "claude", name: "Claude", color: "#df9a68" },
@@ -91,6 +93,11 @@ export function AiUsageIsland() {
 	const [cardOpen, setCardOpen] = useState(false);
 	const [islandOpen, setIslandOpen] = useState(false);
 	const [loading, setLoading] = useState(isTauriRuntime);
+	const [mode, setMode] = useState(() => localStorage.getItem("willow-ai-mode") || "smart");
+	const pillRef = useRef<HTMLDivElement>(null);
+	const cardRef = useRef<HTMLDivElement>(null);
+
+	useSettingsSync({ "willow-ai-mode": setMode });
 
 	const refresh = async () => {
 		if (!isTauriRuntime) return;
@@ -106,10 +113,71 @@ export function AiUsageIsland() {
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;
-		refresh();
+		invoke<Record<string, string>>("load_settings")
+			.then((settings) => {
+				const saved = settings["willow-ai-mode"];
+				if (saved) setMode(String(saved));
+			})
+			.catch(() => {});
+		const initial = window.setTimeout(refresh, 1500);
 		const timer = window.setInterval(refresh, 5 * 60 * 1000);
-		return () => window.clearInterval(timer);
+		return () => {
+			window.clearTimeout(initial);
+			window.clearInterval(timer);
+		};
 	}, []);
+
+	useEffect(() => {
+		if (!isTauriRuntime) return;
+		const unlisten = listen<boolean>("ai-edge-hover", (event) => {
+			if (mode !== "smart") return;
+			setIslandOpen(event.payload);
+			if (!event.payload) setCardOpen(false);
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, [isTauriRuntime, mode]);
+
+	useEffect(() => {
+		if (mode === "fixed") setIslandOpen(true);
+		if (mode === "hidden") {
+			setIslandOpen(false);
+			setCardOpen(false);
+		}
+	}, [mode]);
+
+	useEffect(() => {
+		if (!isTauriRuntime) return;
+		invoke("set_ai_usage_state", { open: islandOpen, cardOpen }).catch(() => {});
+
+		const reportBounds = () => {
+			if (!islandOpen || !pillRef.current) {
+				invoke("update_ai_usage_rect", { rect: null }).catch(() => {});
+				return;
+			}
+			const elements = [pillRef.current, cardOpen ? cardRef.current : null].filter(
+				(element): element is HTMLDivElement => Boolean(element)
+			);
+			const boxes = elements.map((element) => element.getBoundingClientRect());
+			const left = Math.min(...boxes.map((box) => box.left));
+			const top = Math.min(...boxes.map((box) => box.top));
+			const right = Math.max(...boxes.map((box) => box.right));
+			const bottom = Math.max(...boxes.map((box) => box.bottom));
+			invoke("update_ai_usage_rect", {
+				rect: { x: left, y: top, width: right - left, height: bottom - top }
+			}).catch(() => {});
+		};
+
+		const frame = window.requestAnimationFrame(reportBounds);
+		const observer = new ResizeObserver(reportBounds);
+		if (pillRef.current) observer.observe(pillRef.current);
+		if (cardRef.current) observer.observe(cardRef.current);
+		return () => {
+			window.cancelAnimationFrame(frame);
+			observer.disconnect();
+		};
+	}, [isTauriRuntime, islandOpen, cardOpen]);
 
 	const providers = useMemo(
 		() =>
@@ -132,17 +200,19 @@ export function AiUsageIsland() {
 	);
 	const selected = providers.find((provider) => provider.id === selectedId) || providers[0];
 
+	if (mode === "hidden") return null;
+
 	return (
 		<div
 			className={`ai-edge-surface ${islandOpen ? "expanded" : "collapsed"}`}
-			onMouseEnter={() => setIslandOpen(true)}
+			onMouseEnter={() => mode !== "hidden" && setIslandOpen(true)}
 			onMouseLeave={() => {
 				setCardOpen(false);
-				setIslandOpen(false);
+				if (mode === "smart") setIslandOpen(false);
 			}}
 		>
 			<div className="ai-edge-sensor" aria-hidden="true" />
-			<div className="ai-edge-pill" aria-label="Uso de inteligência artificial">
+			<div ref={pillRef} className="ai-edge-pill" aria-label="Uso de inteligência artificial">
 				{providers.map((provider) => {
 					const value = remaining(provider.windows[0]);
 					const circumference = 2 * Math.PI * 18;
@@ -184,7 +254,7 @@ export function AiUsageIsland() {
 				})}
 			</div>
 
-			<div className={`ai-edge-card ${cardOpen ? "show" : ""}`}>
+			<div ref={cardRef} className={`ai-edge-card ${cardOpen ? "show" : ""}`}>
 				<div className="ai-edge-card-head">
 					<div>
 						<strong>{selected.name}</strong>
