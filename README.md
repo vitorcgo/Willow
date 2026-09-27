@@ -52,6 +52,8 @@ Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock pers
 
 • Ilha superior com relógio, calendário, temporizador e controles de mídia
 
+• Gatilho da ilha ajustável por posição, largura e altura para não cobrir abas do navegador
+
 • Controles de volume e brilho na esfera esquerda e aplicativos na esfera direita
 
 • Painel de uso de IA com atualização manual e automática a cada cinco minutos
@@ -63,6 +65,8 @@ Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock pers
 • Dock para substituir a barra de tarefas do Windows
 
 • Prévia de janelas, aplicativos fixados e atalhos Win mais número
+
+• Seção separada no dock para unidades conectadas, Downloads, Documentos, Imagens e Lixeira
 
 • Clima, bateria, CPU, memória, disco e rede
 
@@ -153,7 +157,16 @@ As integrações usam sessões já existentes no computador. Willow não realiza
 
 ## Atualizações
 
-O mecanismo de atualização automática fica desativado até que um repositório de lançamentos e uma chave de assinatura próprios sejam configurados. Consulte `src-tauri/tauri.conf.json` antes de publicar instaladores.
+O Willow consulta a versão mais recente publicada em [GitHub Releases](https://github.com/vitorcgo/Willow/releases). A verificação ocorre ao iniciar e, enquanto o aplicativo permanecer aberto, a cada quatro horas. Quando encontra uma versão superior à instalada, mostra o indicador de atualização e abre a página oficial de download após a confirmação do usuário.
+
+Para publicar uma atualização para todos os computadores:
+
+1. Finalize e envie as mudanças para a branch `main`.
+2. Execute `bun run release 0.1.6`, substituindo `0.1.6` pela nova versão.
+3. O script atualiza os arquivos de versão, cria a tag e a envia ao GitHub.
+4. O workflow `Release` compila o instalador e publica a nova versão.
+
+A versão publicada precisa ser maior que a versão instalada. A instalação continua manual e segura pela página oficial de lançamento, sem executar downloads silenciosos.
 
 ## Licença
 

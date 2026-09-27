@@ -1081,7 +1081,9 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                 }
                             }
                             SystemCommand::ToggleVisibility(visible) => {
-                                let _ = handle_system.emit("visibility-change", visible);
+                                // Fullscreen applications only hide the decorative corners.
+                                // The dynamic island remains as a topmost overlay.
+                                let _ = handle_system.emit("corners-visibility-change", visible);
                                 if let Some(w) = handle_system.get_webview_window("bottom-corners")
                                 {
                                     if visible {
@@ -1942,17 +1944,63 @@ fn now_ms() -> i64 {
         .as_millis() as i64
 }
 
-fn cached_setting_is_true(key: &str, default: bool) -> bool {
+fn cached_setting_value(key: &str) -> Option<serde_json::Value> {
     SETTINGS_CACHE
         .get()
         .and_then(|cache| cache.try_lock().ok())
         .and_then(|settings| settings.get(key).cloned())
+}
+
+fn cached_setting_is_true(key: &str, default: bool) -> bool {
+    cached_setting_value(key)
         .map(|value| match value {
             serde_json::Value::Bool(value) => value,
             serde_json::Value::String(value) => value == "true",
             _ => default,
         })
         .unwrap_or(default)
+}
+
+fn cached_setting_is(key: &str, expected: &str, default: bool) -> bool {
+    cached_setting_value(key)
+        .and_then(|value| value.as_str().map(|value| value == expected))
+        .unwrap_or(default)
+}
+
+fn cached_setting_text(key: &str, default: &str) -> String {
+    cached_setting_value(key)
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_else(|| default.to_owned())
+}
+
+fn cached_setting_i32(key: &str, default: i32) -> i32 {
+    cached_setting_value(key)
+        .and_then(|value| match value {
+            serde_json::Value::Number(value) => value.as_i64().map(|value| value as i32),
+            serde_json::Value::String(value) => value.parse::<i32>().ok(),
+            _ => None,
+        })
+        .unwrap_or(default)
+}
+
+fn notch_trigger_horizontal_bounds(
+    monitor_x: i32,
+    monitor_width: i32,
+    position: &str,
+    width_percent: i32,
+) -> Option<(i32, i32)> {
+    if position == "disabled" || monitor_width <= 0 {
+        return None;
+    }
+
+    let width_percent = width_percent.clamp(5, 50);
+    let trigger_width = (monitor_width * width_percent / 100).max(1);
+    let left = match position {
+        "left" => monitor_x,
+        "right" => monitor_x + monitor_width - trigger_width,
+        _ => monitor_x + (monitor_width - trigger_width) / 2,
+    };
+    Some((left, left + trigger_width))
 }
 
 /// True while a screen-capture UI (Windows Snipping Tool) has a visible window.
@@ -2029,11 +2077,7 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
             let _ = main_win.hide();
         } else {
             let _ = main_win.show();
-            if MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                register_appbar(main_win.clone());
-            } else if let Ok(hwnd) = main_win.hwnd() {
-                re_assert_topmost(hwnd);
-            }
+            position_notch_overlay(main_win.clone());
         }
     }
     if active {
@@ -2272,16 +2316,33 @@ unsafe extern "system" fn mouse_hook_proc(
                 }
             }
 
-            // --- Main (TopBar) Interaction ---
-            if !fg_fs {
+            // --- Main (dynamic island) interaction ---
+            // Fixed mode remains interactive above fullscreen applications.
+            // Smart and peek keep their existing fullscreen hiding behaviour.
+            let fixed_notch = cached_setting_is("willow-notch-mode", "fixed", true);
+            if !fg_fs || fixed_notch {
                 if let Some(main_win) = app_handle.get_webview_window("main") {
                     if main_win.is_visible().unwrap_or(false) {
                         let in_notch_hover = NOTCH_IS_HOVERED.load(Ordering::Relaxed);
                         let mut is_notch_hovered = false;
                         let scale = main_win.scale_factor().unwrap_or(1.0);
-                        let at_top_edge = cursor.y <= (mon_y + (8.0 * scale) as i32)
-                            && cursor.x >= mon_x
-                            && cursor.x <= (mon_x + mon_w);
+                        let trigger_position =
+                            cached_setting_text("willow-notch-trigger-position", "center");
+                        let trigger_width = cached_setting_i32("willow-notch-trigger-width", 20);
+                        let trigger_height =
+                            cached_setting_i32("willow-notch-trigger-height", 4).clamp(2, 16);
+                        let trigger_bounds = notch_trigger_horizontal_bounds(
+                            mon_x,
+                            mon_w,
+                            &trigger_position,
+                            trigger_width,
+                        );
+                        let at_top_edge = trigger_bounds.is_some_and(|(left, right)| {
+                            cursor.y >= mon_y
+                                && cursor.y <= mon_y + (trigger_height as f64 * scale) as i32
+                                && cursor.x >= left
+                                && cursor.x <= right
+                        });
 
                         if at_top_edge || in_notch_hover {
                             is_notch_hovered = true;
@@ -2382,7 +2443,7 @@ unsafe extern "system" fn mouse_hook_proc(
             // room to open. Native hit-testing keeps every transparent pixel from
             // stealing clicks from applications underneath it.
             let ai_mode = AI_USAGE_MODE.load(Ordering::Relaxed);
-            if ai_mode == 0 || fg_fs {
+            if ai_mode == 0 {
                 if let Some(ai_win) = app_handle.get_webview_window("ai-usage") {
                     if MH_LAST_AI_IGNORE.load(Ordering::Relaxed) != 1 {
                         let _ = ai_win.set_ignore_cursor_events(true);
@@ -2871,102 +2932,63 @@ pub fn sync_overlays(app: &AppHandle) {
     }
 }
 
-pub fn register_appbar(window: tauri::WebviewWindow) {
+/// Positions the dynamic island as a topmost overlay without reserving any
+/// Windows work area. The bottom dock remains the only Willow AppBar.
+pub fn position_notch_overlay(window: tauri::WebviewWindow) {
     if let Ok(Some(monitor)) = window.app_handle().primary_monitor() {
-        let m_size = monitor.size();
-        let m_pos = monitor.position();
+        let monitor_size = monitor.size();
+        let monitor_position = monitor.position();
         let Ok(hwnd) = window.hwnd() else {
             return;
         };
         let scale = monitor.scale_factor();
         let willow_scale = crate::utils::get_willow_scale(window.app_handle());
-        let ph = ((420.0 * willow_scale) * scale) as i32;
-        let pr = ((40.0 * willow_scale) * scale) as i32; // Scale the reserved top screen space
+        let height = ((420.0 * willow_scale) * scale) as i32;
 
         unsafe {
-            use windows::Win32::Foundation::RECT;
-            use windows::Win32::UI::Shell::{
-                SHAppBarMessage, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_SETPOS, APPBARDATA,
-            };
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-                SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA,
-                WS_EX_TOOLWINDOW,
+                GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
+                SWP_NOACTIVATE, SWP_NOZORDER, WS_EX_NOACTIVATE as WS_EX_NA, WS_EX_TOOLWINDOW,
             };
 
-            // Set styles first
             let mut ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
             ex_style |= (WS_EX_TOOLWINDOW.0 | WS_EX_NA.0) as usize;
             let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style as isize);
 
-            let mut abd = APPBARDATA {
-                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
-                hWnd: hwnd,
-                ..Default::default()
-            };
-
-            if !MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                SHAppBarMessage(ABM_NEW, &mut abd);
-                MAIN_APPBAR_REGISTERED.store(true, Ordering::Relaxed);
+            // Remove the legacy top AppBar when changing from an older build.
+            // This immediately gives the reserved strip back to Windows.
+            if MAIN_APPBAR_REGISTERED.swap(false, Ordering::Relaxed) {
+                unregister_appbar_native(hwnd);
             }
 
-            abd.uEdge = ABE_TOP;
-            abd.rc = RECT {
-                left: m_pos.x,
-                top: m_pos.y,
-                right: m_pos.x + m_size.width as i32,
-                bottom: m_pos.y + pr,
-            };
-
-            SHAppBarMessage(ABM_QUERYPOS, &mut abd);
-            SHAppBarMessage(ABM_SETPOS, &mut abd);
-
-            // Use the shell-approved rect for the final position, but keep our ph height for the window
-            let final_width = abd.rc.right - abd.rc.left;
-
-            let mut current_rect = RECT::default();
-            let mut already_positioned = false;
-            if GetWindowRect(hwnd, &mut current_rect).is_ok() {
-                let current_width = current_rect.right - current_rect.left;
-                let current_height = current_rect.bottom - current_rect.top;
-                if current_rect.left == abd.rc.left
-                    && current_rect.top == abd.rc.top
-                    && current_width == final_width
-                    && current_height == ph
-                {
-                    already_positioned = true;
-                }
-            }
-
-            if !already_positioned {
-                let _ = SetWindowPos(
-                    hwnd,
-                    None,
-                    abd.rc.left,
-                    abd.rc.top,
-                    final_width,
-                    ph,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                );
-            }
-
-            // Re-assert topmost after repositioning — use re_assert_topmost instead of
-            // set_always_on_top(true) to include SWP_NOACTIVATE and re-stamp WS_EX_NOACTIVATE.
-            // This prevents WM_ACTIVATE from reaching WebView2, which caused willow windows
-            // to blank/hide when other windows were minimized or closed.
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                monitor_position.x,
+                monitor_position.y,
+                monitor_size.width as i32,
+                height,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
             re_assert_topmost(hwnd);
+        }
 
-            if !window.is_visible().unwrap_or(false) {
-                let _ = window.show();
-            }
+        if !window.is_visible().unwrap_or(false) {
+            let _ = window.show();
         }
     } else {
-        let w = window.clone();
+        let retry_window = window.clone();
         tauri::async_runtime::spawn(async move {
             for _ in 0..10 {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                if let Ok(Some(_monitor)) = w.app_handle().primary_monitor() {
-                    register_appbar(w);
+                if retry_window
+                    .app_handle()
+                    .primary_monitor()
+                    .ok()
+                    .flatten()
+                    .is_some()
+                {
+                    position_notch_overlay(retry_window);
                     break;
                 }
             }
@@ -3327,10 +3349,8 @@ pub fn unregister_appbar_native(hwnd: HWND) {
 }
 
 fn reposition_all_windows(app_handle: &AppHandle) {
-    if MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-        if let Some(main_win) = app_handle.get_webview_window("main") {
-            register_appbar(main_win);
-        }
+    if let Some(main_win) = app_handle.get_webview_window("main") {
+        position_notch_overlay(main_win);
     }
     // Only reposition the dock if it's enabled in settings.
     // Without this guard, power events (plug/unplug, wake) would re-show
@@ -3551,7 +3571,7 @@ unsafe extern "system" fn display_monitor_proc(
 
 #[cfg(test)]
 mod tests {
-    use super::win_number_index;
+    use super::{notch_trigger_horizontal_bounds, win_number_index};
 
     #[test]
     fn win_number_maps_top_row_digits_only() {
@@ -3562,5 +3582,29 @@ mod tests {
         assert_eq!(win_number_index(0x30), None);
         assert_eq!(win_number_index(0x41), None);
         assert_eq!(win_number_index(0x61), None);
+    }
+
+    #[test]
+    fn notch_trigger_respects_position_width_and_disabled_state() {
+        assert_eq!(
+            notch_trigger_horizontal_bounds(100, 1000, "left", 20),
+            Some((100, 300))
+        );
+        assert_eq!(
+            notch_trigger_horizontal_bounds(100, 1000, "center", 20),
+            Some((500, 700))
+        );
+        assert_eq!(
+            notch_trigger_horizontal_bounds(100, 1000, "right", 20),
+            Some((900, 1100))
+        );
+        assert_eq!(
+            notch_trigger_horizontal_bounds(100, 1000, "disabled", 20),
+            None
+        );
+        assert_eq!(
+            notch_trigger_horizontal_bounds(0, 1000, "center", 1),
+            Some((475, 525))
+        );
     }
 }

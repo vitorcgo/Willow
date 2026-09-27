@@ -127,6 +127,8 @@ fn main() {
             change_notch_mode,
             sync_appbar,
             open_app,
+            get_dock_system_items,
+            open_system_location,
             launch_new_instance,
             update_dock_rect,
             update_notch_rect,
@@ -249,7 +251,7 @@ fn main() {
                     let h = handle_for_events.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                        register_appbar(w);
+                        position_notch_overlay(w);
                         sync_overlays(&h);
                     });
                 }

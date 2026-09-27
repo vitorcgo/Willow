@@ -148,6 +148,12 @@ function SettingsApp() {
 						<NotchTab
 							notchMode={settings.notchMode}
 							setNotchModeValue={settings.setNotchModeValue}
+							notchTriggerPosition={settings.notchTriggerPosition}
+							setNotchTriggerPositionValue={settings.setNotchTriggerPositionValue}
+							notchTriggerWidth={settings.notchTriggerWidth}
+							setNotchTriggerWidthValue={settings.setNotchTriggerWidthValue}
+							notchTriggerHeight={settings.notchTriggerHeight}
+							setNotchTriggerHeightValue={settings.setNotchTriggerHeightValue}
 							calendarEnabled={settings.calendarEnabled}
 							toggleCalendar={settings.toggleCalendar}
 							timerSoundEnabled={settings.timerSoundEnabled}
@@ -193,6 +199,16 @@ function SettingsApp() {
 							toggleDockAdaptive={settings.toggleDockAdaptive}
 							dockWinNumberEnabled={settings.dockWinNumberEnabled}
 							toggleDockWinNumber={settings.toggleDockWinNumber}
+							dockSystemSectionEnabled={settings.dockSystemSectionEnabled}
+							toggleDockSystemSection={settings.toggleDockSystemSection}
+							dockSystemSectionSide={settings.dockSystemSectionSide}
+							setDockSystemSectionSideValue={settings.setDockSystemSectionSideValue}
+							dockSystemDrives={settings.dockSystemDrives}
+							dockSystemDownloads={settings.dockSystemDownloads}
+							dockSystemDocuments={settings.dockSystemDocuments}
+							dockSystemPictures={settings.dockSystemPictures}
+							dockSystemRecycleBin={settings.dockSystemRecycleBin}
+							toggleDockSystemItem={settings.toggleDockSystemItem}
 						/>
 					)}
 					{activeTab === "ai-usage" && (

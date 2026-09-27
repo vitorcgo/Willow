@@ -4,11 +4,11 @@ use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::UI::WindowsAndMessaging::EnumWindows;
 
 use crate::services::{
-    enum_windows_proc, register_appbar, register_dock_appbar, sync_overlays,
+    enum_windows_proc, position_notch_overlay, register_dock_appbar, sync_overlays,
     unregister_appbar_native,
 };
 use crate::state::*;
-use crate::types::{AppInfo, BrightnessChangeEvent, IntRect};
+use crate::types::{AppInfo, BrightnessChangeEvent, DockSystemItem, IntRect};
 use crate::utils::*;
 use std::collections::HashMap;
 
@@ -236,11 +236,9 @@ pub async fn toggle_dock(app: AppHandle, enable: bool) {
             set_taskbar_visibility(true, true);
             NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);
 
-            // Re-sync other appbars
+            // Keep the independent top overlay aligned after dock changes.
             if let Some(main_win) = app.get_webview_window("main") {
-                if MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                    register_appbar(main_win);
-                }
+                position_notch_overlay(main_win);
             }
         }
     }
@@ -249,13 +247,7 @@ pub async fn toggle_dock(app: AppHandle, enable: bool) {
 #[tauri::command]
 pub async fn sync_appbar(app: AppHandle) {
     if let Some(main_win) = app.get_webview_window("main") {
-        if MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-            register_appbar(main_win);
-        } else {
-            if let Ok(hwnd) = main_win.hwnd() {
-                re_assert_topmost(hwnd);
-            }
-        }
+        position_notch_overlay(main_win);
     }
     if let Some(dock_win) = app.get_webview_window("dock") {
         // Skip dock re-registration if dock is disabled in settings.
@@ -375,40 +367,9 @@ pub async fn change_dock_mode(app: AppHandle, mode: String) {
 }
 
 #[tauri::command]
-pub async fn change_notch_mode(app: AppHandle, mode: String) {
+pub async fn change_notch_mode(app: AppHandle, _mode: String) {
     if let Some(main_win) = app.get_webview_window("main") {
-        if mode == "fixed" {
-            register_appbar(main_win.clone());
-        } else {
-            let _ = main_win.show();
-            if let Ok(hwnd) = main_win.hwnd() {
-                let hwnd_val = hwnd.0 as isize;
-                tauri::async_runtime::spawn_blocking(move || {
-                    unregister_appbar_native(HWND(hwnd_val as *mut _));
-                });
-                MAIN_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
-
-                let main_clone = main_win.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    if !MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-                        if let Ok(hwnd) = main_clone.hwnd() {
-                            re_assert_topmost(hwnd);
-                        }
-                    }
-                });
-            }
-        }
-        // Reposition window to span the full primary monitor so CSS justify-content:center works
-        if let Ok(Some(monitor)) = main_win.primary_monitor() {
-            let m_pos = monitor.position();
-            let m_size = monitor.size();
-            let scale = monitor.scale_factor();
-            let willow_scale = crate::utils::get_willow_scale(&app);
-            let target_height = (420.0 * willow_scale * scale) as u32;
-            let _ = main_win.set_position(tauri::PhysicalPosition::new(m_pos.x, m_pos.y));
-            let _ = main_win.set_size(tauri::PhysicalSize::new(m_size.width, target_height));
-        }
+        position_notch_overlay(main_win);
 
         let current = CURRENT_NOTCH_OVERLAP.load(Ordering::Relaxed);
         if current != -1 {
@@ -574,6 +535,120 @@ pub async fn open_app(app: AppHandle, app_name: String) {
     }
 
     tauri::async_runtime::spawn_blocking(move || launch_path(&app_name));
+}
+
+/// Returns locations that belong in the optional system section of the dock.
+/// Drives are enumerated on every call so removable media appears and
+/// disappears without restarting Willow.
+#[tauri::command]
+pub async fn get_dock_system_items() -> Vec<DockSystemItem> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut items = Vec::new();
+
+        unsafe {
+            use windows::core::PCWSTR;
+            use windows::Win32::Storage::FileSystem::{
+                GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
+            };
+
+            let drive_mask = GetLogicalDrives();
+            for index in 0..26u32 {
+                if drive_mask & (1 << index) == 0 {
+                    continue;
+                }
+
+                let letter = (b'A' + index as u8) as char;
+                let root = format!("{}:\\", letter);
+                let root_wide: Vec<u16> = root.encode_utf16().chain(std::iter::once(0)).collect();
+                let drive_type = GetDriveTypeW(PCWSTR(root_wide.as_ptr()));
+                let kind = match drive_type {
+                    2 => "removable",
+                    4 => "network",
+                    5 => "optical",
+                    _ => "drive",
+                };
+
+                let mut volume_name = [0u16; 128];
+                let label = if !matches!(kind, "network" | "optical")
+                    && GetVolumeInformationW(
+                        PCWSTR(root_wide.as_ptr()),
+                        Some(&mut volume_name),
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                    .is_ok()
+                {
+                    let length = volume_name
+                        .iter()
+                        .position(|character| *character == 0)
+                        .unwrap_or(volume_name.len());
+                    String::from_utf16_lossy(&volume_name[..length])
+                } else {
+                    String::new()
+                };
+
+                let fallback = match kind {
+                    "removable" => "Unidade removível",
+                    "network" => "Unidade de rede",
+                    "optical" => "Unidade óptica",
+                    _ => "Unidade local",
+                };
+                let name = if label.trim().is_empty() {
+                    format!("{} ({letter}:)", fallback)
+                } else {
+                    format!("{} ({letter}:)", label.trim())
+                };
+
+                items.push(DockSystemItem {
+                    id: format!("drive-{letter}"),
+                    name,
+                    path: root,
+                    kind: kind.to_string(),
+                });
+            }
+        }
+
+        let folders = [
+            ("downloads", "Downloads", dirs::download_dir()),
+            ("documents", "Documentos", dirs::document_dir()),
+            ("pictures", "Imagens", dirs::picture_dir()),
+        ];
+        for (id, name, path) in folders {
+            if let Some(path) = path.filter(|path| path.is_dir()) {
+                items.push(DockSystemItem {
+                    id: id.to_string(),
+                    name: name.to_string(),
+                    path: path.to_string_lossy().into_owned(),
+                    kind: id.to_string(),
+                });
+            }
+        }
+
+        items.push(DockSystemItem {
+            id: "recycle-bin".to_string(),
+            name: "Lixeira".to_string(),
+            path: "shell:RecycleBinFolder".to_string(),
+            kind: "recycle-bin".to_string(),
+        });
+
+        items
+    })
+    .await
+    .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn open_system_location(path: String) -> Result<(), String> {
+    let is_recycle_bin = path.eq_ignore_ascii_case("shell:RecycleBinFolder");
+    if !is_recycle_bin && !std::path::Path::new(&path).is_dir() {
+        return Err("O local não está disponível no momento".to_string());
+    }
+
+    tauri::async_runtime::spawn_blocking(move || launch_path(&path))
+        .await
+        .map_err(|error| format!("Não foi possível abrir o local: {error}"))
 }
 
 /// Launches another instance of an app instead of focusing an existing window.
@@ -2452,13 +2527,7 @@ pub async fn close_window(hwnd: isize) {
 
 fn re_register_appbars(app: &AppHandle, settings: &HashMap<String, serde_json::Value>) {
     if let Some(main_win) = app.get_webview_window("main") {
-        let notch_fixed = settings
-            .get("willow-notch-mode")
-            .map(|v| v.as_str() == Some("fixed"))
-            .unwrap_or(true);
-        if notch_fixed {
-            crate::services::register_appbar(main_win);
-        }
+        crate::services::position_notch_overlay(main_win);
     }
     if let Some(dock_win) = app.get_webview_window("dock") {
         let is_fixed = settings

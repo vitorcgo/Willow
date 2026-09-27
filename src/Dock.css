@@ -250,6 +250,39 @@ body {
 	order: 3;
 }
 
+.dock-system-section {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 36px;
+}
+
+.dock-system-section-left {
+	order: 0;
+	padding-right: 12px;
+	border-right: 1px solid var(--willow-border, rgba(255, 255, 255, 0.16));
+}
+
+.dock-system-section-right {
+	order: 4;
+	padding-left: 12px;
+	border-left: 1px solid var(--willow-border, rgba(255, 255, 255, 0.16));
+}
+
+.dock-system-button {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
+	color: inherit;
+}
+
+.dock-system-icon {
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.12));
+	box-shadow: inset 0 0 0 1px var(--willow-accent-muted, rgba(255, 255, 255, 0.1));
+}
+
 .dock::before,
 .dock::after {
 	content: "";

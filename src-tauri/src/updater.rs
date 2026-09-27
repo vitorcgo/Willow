@@ -9,7 +9,7 @@ const RELEASES_API: &str = "https://api.github.com/repos/vitorcgo/Willow/release
 const RELEASES_PAGE: &str = "https://github.com/vitorcgo/Willow/releases/latest";
 
 /// Minimum time between background update checks. Manual checks bypass this.
-const CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
+const CHECK_INTERVAL_SECS: i64 = 4 * 60 * 60;
 /// Network timeout for a single manifest request.
 const CHECK_TIMEOUT_SECS: u64 = 10;
 const STATE_FILE: &str = "update-state.json";
@@ -260,26 +260,23 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Startup entry point for the optional background check. It never interrupts
-/// startup and never opens or installs anything without an explicit click.
+/// Background update monitor. It checks at startup and then every four hours.
+/// It never opens or installs anything without an explicit click.
 pub async fn run_startup_check(app: AppHandle) {
-    let auto_update =
-        crate::utils::get_setting_str(&app, "willow-auto-update").as_deref() == Some("true");
+    loop {
+        let automatic_checks =
+            crate::utils::get_setting_str(&app, "willow-auto-update").as_deref() != Some("false");
 
-    if !auto_update {
-        return;
+        if automatic_checks {
+            if let Ok(result) = check(&app, false).await {
+                if result.available {
+                    let _ = app.emit("update-available", &result);
+                }
+            }
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(CHECK_INTERVAL_SECS as u64)).await;
     }
-
-    let result = match check(&app, false).await {
-        Ok(result) => result,
-        Err(_) => return,
-    };
-
-    if !result.available {
-        return;
-    }
-
-    let _ = app.emit("update-available", &result);
 }
 
 #[tauri::command]

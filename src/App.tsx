@@ -601,6 +601,7 @@ function App() {
 	}, [windowLabel, notchMode, triggerEventPeek]);
 
 	const [isVisible, setIsVisible] = useState(true);
+	const [areCornersVisible, setAreCornersVisible] = useState(true);
 	const [isImpacted, setIsImpacted] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [startupAnimating, setStartupAnimating] = useState(false);
@@ -797,8 +798,8 @@ function App() {
 	const [settingsCornersEnabled, setSettingsCornersEnabled] = useState(
 		() => localStorage.getItem("willow-corners-enabled") === "true"
 	);
-	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
-		() => (localStorage.getItem("willow-media-layout") as "classic" | "compact") || "classic"
+	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(() =>
+		localStorage.getItem("willow-media-layout") === "compact" ? "compact" : "classic"
 	);
 	const [compactVolumeExpanded, setCompactVolumeExpanded] = useState(false);
 
@@ -836,6 +837,9 @@ function App() {
 				setSettingsAmbienceEnabled(getVal("willow-media-ambience-enabled", "true") !== "false");
 				setSettingsCompactGlowEnabled(
 					getVal("willow-media-compact-glow-enabled", "true") !== "false"
+				);
+				setMediaLayout(
+					getVal("willow-media-layout", "classic") === "compact" ? "compact" : "classic"
 				);
 				setSettingsCornersEnabled(getVal("willow-corners-enabled", "false") === "true");
 				setTimeFormat24h(getVal("willow-time-format-24h") === "true");
@@ -942,6 +946,9 @@ function App() {
 		const unlistenVisibility = listen<boolean>("visibility-change", (event) => {
 			setIsVisible(event.payload);
 		});
+		const unlistenCornersVisibility = listen<boolean>("corners-visibility-change", (event) => {
+			setAreCornersVisible(event.payload);
+		});
 
 		const unlistenNotchOverlap = listen<boolean>("notch-overlap", (event) => {
 			setIsOverlapped(event.payload);
@@ -953,6 +960,7 @@ function App() {
 
 		return () => {
 			unlistenVisibility.then((f) => f());
+			unlistenCornersVisibility.then((f) => f());
 			unlistenNotchOverlap.then((f) => f());
 			unlistenNotchEdgeHover.then((f) => f());
 			document.removeEventListener("contextmenu", preventContext);
@@ -1031,6 +1039,11 @@ function App() {
 
 	type WillowMode = "music" | "calendar" | "command-center" | "tray" | "status";
 	const [willowMode, setWillowMode] = useState<WillowMode>("status");
+	const changeMediaLayout = useCallback((layout: "classic" | "compact") => {
+		setMediaLayout(layout);
+		localStorage.setItem("willow-media-layout", layout);
+		invoke("save_setting", { key: "willow-media-layout", value: layout }).catch(console.error);
+	}, []);
 	const toggleControlCenter = (event: React.MouseEvent) => {
 		event.stopPropagation();
 		setIsHovered(true);
@@ -1907,7 +1920,7 @@ function App() {
 			)}
 			{/* Cantos da tela (Top) */}
 			<AnimatePresence>
-				{isVisible && settingsCornersEnabled && (
+				{areCornersVisible && settingsCornersEnabled && (
 					<>
 						<motion.div
 							className="screen-corner top-left"
@@ -2083,15 +2096,7 @@ function App() {
 													nextBack={nextBack}
 													onAnimatePrev={animatePrev}
 													onAnimateNext={animateNext}
-													onLayoutChange={(layout) => {
-														setMediaLayout(layout);
-														localStorage.setItem("willow-media-layout", layout);
-														window.dispatchEvent(
-															new CustomEvent("settings-changed", {
-																detail: { key: "media-layout", value: layout }
-															})
-														);
-													}}
+													onLayoutChange={changeMediaLayout}
 												/>
 											) : (
 												<div className="compact-premium-layout">
@@ -2102,13 +2107,7 @@ function App() {
 															whileTap={{ scale: 0.95 }}
 															onClick={(e) => {
 																e.stopPropagation();
-																setMediaLayout("compact");
-																localStorage.setItem("willow-media-layout", "compact");
-																window.dispatchEvent(
-																	new CustomEvent("settings-changed", {
-																		detail: { key: "media-layout", value: "compact" }
-																	})
-																);
+																changeMediaLayout("compact");
 															}}
 															style={{ cursor: "pointer" }}
 														>
@@ -2373,13 +2372,15 @@ function App() {
 															{/* Left: visualizer (music) or weather (command-center, calendar) */}
 															<div className="side-content left">
 																<div className="notch-side-tools">
-																	<button
-																		className={`notch-control-orb ${willowMode === "command-center" ? "active" : ""}`}
-																		onClick={toggleControlCenter}
-																		title="Abrir controles de som e brilho"
-																	>
-																		<VolumeLowIcon size={11} />
-																	</button>
+																	{isHovered && (
+																		<button
+																			className={`notch-control-orb ${willowMode === "command-center" ? "active" : ""}`}
+																			onClick={toggleControlCenter}
+																			title="Abrir controles de som e brilho"
+																		>
+																			<VolumeLowIcon size={11} />
+																		</button>
+																	)}
 																	{isMusicMode && settingsVisualizerEnabled ? (
 																		<AnimatePresence>
 																			<motion.div
@@ -2393,8 +2394,8 @@ function App() {
 																		</AnimatePresence>
 																	) : (
 																		willowMode === "status" &&
-																			isHovered &&
-																			statusWidgets.left.map(renderStatusWidget)
+																		isHovered &&
+																		statusWidgets.left.map(renderStatusWidget)
 																	)}
 																</div>
 															</div>
@@ -2445,83 +2446,89 @@ function App() {
 																<div className="notch-side-tools">
 																	{isMusicMode && settingsAlbumArtEnabled && (
 																		<AnimatePresence mode="wait">
-																		<motion.div
-																			key="album-art"
-																			className="album-art-glow-wrapper"
-																			initial={{ opacity: 0, scale: 0.8 }}
-																			animate={{ opacity: 1, scale: 1 }}
-																			exit={{ opacity: 0, y: -20, scale: 0.8, filter: "blur(8px)" }}
-																			transition={{ duration: 0.12 }}
-																		>
-																			{albumArtUrl && settingsCompactGlowEnabled && (
-																				<img
-																					src={albumArtUrl}
-																					alt=""
-																					className="album-art-glow-bg"
-																					draggable={false}
-																				/>
-																			)}
-																			<button
-																				className={`album-art${isHovered ? " album-art-large" : ""}${!isPlaying ? " paused" : ""}`}
-																				onClick={(e) => {
-																					e.stopPropagation();
-																					togglePlayPause();
+																			<motion.div
+																				key="album-art"
+																				className="album-art-glow-wrapper"
+																				initial={{ opacity: 0, scale: 0.8 }}
+																				animate={{ opacity: 1, scale: 1 }}
+																				exit={{
+																					opacity: 0,
+																					y: -20,
+																					scale: 0.8,
+																					filter: "blur(8px)"
 																				}}
-																				onDoubleClick={(e) => {
-																					e.stopPropagation();
-																					skipNext();
-																				}}
-																				onContextMenu={(e) => {
-																					e.preventDefault();
-																					e.stopPropagation();
-																					skipPrevious();
-																				}}
+																				transition={{ duration: 0.12 }}
 																			>
-																				<div className="album-art-inner">
-																					<AnimatePresence mode="wait" initial={false}>
-																						{albumArtUrl ? (
-																							<motion.img
-																								key={`compact-art-${albumArtKey}`}
-																								src={albumArtUrl}
-																								alt="Art"
-																								draggable={false}
-																								initial={{ rotateY: 90, opacity: 0 }}
-																								animate={{ rotateY: 0, opacity: 1 }}
-																								exit={{ rotateY: -90, opacity: 0 }}
-																								transition={{ duration: 0.25, ease: "easeInOut" }}
-																								style={{
-																									width: "100%",
-																									height: "100%",
-																									objectFit: "cover"
-																								}}
-																							/>
-																						) : (
-																							<motion.div
-																								key="compact-placeholder"
-																								className="album-art-placeholder"
-																								initial={{ rotateY: 90, opacity: 0 }}
-																								animate={{ rotateY: 0, opacity: 1 }}
-																								exit={{ rotateY: -90, opacity: 0 }}
-																								transition={{ duration: 0.25, ease: "easeInOut" }}
-																							>
-																								<MusicNoteIcon className="music-placeholder-svg-small" />
-																							</motion.div>
-																						)}
-																					</AnimatePresence>
-																					<div className="album-art-overlay">
-																						<div className="control-icon-small">
-																							{isPlaying ? <PauseIcon /> : <PlayIcon />}
+																				{albumArtUrl && settingsCompactGlowEnabled && (
+																					<img
+																						src={albumArtUrl}
+																						alt=""
+																						className="album-art-glow-bg"
+																						draggable={false}
+																					/>
+																				)}
+																				<button
+																					className={`album-art${isHovered ? " album-art-large" : ""}${!isPlaying ? " paused" : ""}`}
+																					onClick={(e) => {
+																						e.stopPropagation();
+																						togglePlayPause();
+																					}}
+																					onDoubleClick={(e) => {
+																						e.stopPropagation();
+																						skipNext();
+																					}}
+																					onContextMenu={(e) => {
+																						e.preventDefault();
+																						e.stopPropagation();
+																						skipPrevious();
+																					}}
+																				>
+																					<div className="album-art-inner">
+																						<AnimatePresence mode="wait" initial={false}>
+																							{albumArtUrl ? (
+																								<motion.img
+																									key={`compact-art-${albumArtKey}`}
+																									src={albumArtUrl}
+																									alt="Art"
+																									draggable={false}
+																									initial={{ rotateY: 90, opacity: 0 }}
+																									animate={{ rotateY: 0, opacity: 1 }}
+																									exit={{ rotateY: -90, opacity: 0 }}
+																									transition={{ duration: 0.25, ease: "easeInOut" }}
+																									style={{
+																										width: "100%",
+																										height: "100%",
+																										objectFit: "cover"
+																									}}
+																								/>
+																							) : (
+																								<motion.div
+																									key="compact-placeholder"
+																									className="album-art-placeholder"
+																									initial={{ rotateY: 90, opacity: 0 }}
+																									animate={{ rotateY: 0, opacity: 1 }}
+																									exit={{ rotateY: -90, opacity: 0 }}
+																									transition={{ duration: 0.25, ease: "easeInOut" }}
+																								>
+																									<MusicNoteIcon className="music-placeholder-svg-small" />
+																								</motion.div>
+																							)}
+																						</AnimatePresence>
+																						<div className="album-art-overlay">
+																							<div className="control-icon-small">
+																								{isPlaying ? <PauseIcon /> : <PlayIcon />}
+																							</div>
 																						</div>
 																					</div>
-																				</div>
-																			</button>
-																		</motion.div>
+																				</button>
+																			</motion.div>
 																		</AnimatePresence>
 																	)}
 																	{!isMusicMode &&
 																		willowMode === "status" &&
-																			isHovered &&
-																			statusWidgets.right.map(renderStatusWidget)}
+																		isHovered &&
+																		statusWidgets.right.map(renderStatusWidget)}
+																	{isHovered && (
 																		<button
 																			className={`notch-control-orb ${willowMode === "tray" ? "active" : ""}`}
 																			onClick={toggleTrayPanel}
@@ -2529,6 +2536,7 @@ function App() {
 																		>
 																			<TrayIcon />
 																		</button>
+																	)}
 																</div>
 															</div>
 														</motion.div>

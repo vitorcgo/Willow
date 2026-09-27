@@ -397,7 +397,13 @@ input:checked + .slider:before {
 	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.05));
 }
 
-.unit-toggle-minimal span {
+.unit-toggle-minimal span,
+.unit-toggle-minimal button {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font-family: inherit;
+	cursor: pointer;
 	font-size: 10px;
 	font-weight: 700;
 	width: 18px;
@@ -410,13 +416,15 @@ input:checked + .slider:before {
 	transition: all 0.2s ease;
 }
 
-.unit-toggle-minimal span.active {
+.unit-toggle-minimal span.active,
+.unit-toggle-minimal button.active {
 	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.15));
 	color: var(--willow-accent, var(--willow-text, white));
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.unit-toggle-minimal.wide span {
+.unit-toggle-minimal.wide span,
+.unit-toggle-minimal.wide button {
 	width: auto;
 	padding: 0 10px;
 	font-size: 11px;
@@ -615,6 +623,20 @@ input:checked + .slider:before {
 	border-radius: 50%;
 	cursor: pointer;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.settings-slider-with-value {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.settings-slider-with-value span {
+	min-width: 34px;
+	font-size: 10px;
+	font-weight: 700;
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.55));
+	text-align: right;
 }
 
 .scale-button-container {

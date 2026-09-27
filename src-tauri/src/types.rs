@@ -62,6 +62,14 @@ pub struct AppInfo {
     pub all_hwnds: Option<Vec<(isize, String)>>, // (hwnd, title)
 }
 
+#[derive(Serialize, Clone, Debug)]
+pub struct DockSystemItem {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+}
+
 #[derive(Clone, Serialize)]
 pub struct BrightnessChangeEvent {
     pub brightness: u32,

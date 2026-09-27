@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, memo } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { HardDrive, Usb, Download, FileText, Images, Trash2, Disc3, Network } from "lucide-react";
 import "./Dock.css";
 import { initTheme } from "./theme";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -15,6 +16,13 @@ interface AppInfo {
 	hwnd?: number;
 	executable?: string;
 	all_hwnds?: [number, string][];
+}
+
+interface DockSystemItem {
+	id: string;
+	name: string;
+	path: string;
+	kind: string;
 }
 
 // Host processes (Edge/Chrome/Brave/ApplicationFrameHost) run every PWA/UWP
@@ -78,6 +86,28 @@ const Dock = memo(function Dock() {
 	const [dockAdaptive, setDockAdaptive] = useState(
 		() => localStorage.getItem("willow-dock-adaptive") === "true"
 	);
+	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
+		() => localStorage.getItem("willow-dock-system-section-enabled") !== "false"
+	);
+	const [dockSystemSectionSide, setDockSystemSectionSide] = useState(() =>
+		localStorage.getItem("willow-dock-system-section-side") === "left" ? "left" : "right"
+	);
+	const [dockSystemDrives, setDockSystemDrives] = useState(
+		() => localStorage.getItem("willow-dock-system-drives") !== "false"
+	);
+	const [dockSystemDownloads, setDockSystemDownloads] = useState(
+		() => localStorage.getItem("willow-dock-system-downloads") !== "false"
+	);
+	const [dockSystemDocuments, setDockSystemDocuments] = useState(
+		() => localStorage.getItem("willow-dock-system-documents") === "true"
+	);
+	const [dockSystemPictures, setDockSystemPictures] = useState(
+		() => localStorage.getItem("willow-dock-system-pictures") === "true"
+	);
+	const [dockSystemRecycleBin, setDockSystemRecycleBin] = useState(
+		() => localStorage.getItem("willow-dock-system-recycle-bin") !== "false"
+	);
+	const [systemItems, setSystemItems] = useState<DockSystemItem[]>([]);
 	const [isMaximized, setIsMaximized] = useState(false);
 	const [previewData, setPreviewData] = useState<{
 		id: string;
@@ -220,7 +250,7 @@ const Dock = memo(function Dock() {
 			window.removeEventListener("resize", updateRect);
 			observer.disconnect();
 		};
-	}, [pinnedApps, activeApps, isHidden, previewData, scale]);
+	}, [pinnedApps, activeApps, systemItems, isHidden, previewData, scale]);
 
 	useEffect(() => {
 		const init = async () => {
@@ -247,6 +277,16 @@ const Dock = memo(function Dock() {
 
 			const adaptive = getVal("willow-dock-adaptive", "false");
 			setDockAdaptive(adaptive === "true");
+
+			setDockSystemSectionEnabled(getVal("willow-dock-system-section-enabled", "true") === "true");
+			setDockSystemSectionSide(
+				getVal("willow-dock-system-section-side", "right") === "left" ? "left" : "right"
+			);
+			setDockSystemDrives(getVal("willow-dock-system-drives", "true") === "true");
+			setDockSystemDownloads(getVal("willow-dock-system-downloads", "true") === "true");
+			setDockSystemDocuments(getVal("willow-dock-system-documents", "false") === "true");
+			setDockSystemPictures(getVal("willow-dock-system-pictures", "false") === "true");
+			setDockSystemRecycleBin(getVal("willow-dock-system-recycle-bin", "true") === "true");
 
 			const scaleVal = getVal("willow-scale");
 			if (scaleVal !== null) setScale(parseFloat(scaleVal));
@@ -294,8 +334,45 @@ const Dock = memo(function Dock() {
 		"willow-dock-preview-enabled": setDockPreviewEnabled,
 		"willow-dock-icon-only": setDockIconOnly,
 		"willow-dock-adaptive": setDockAdaptive,
+		"willow-dock-system-section-enabled": setDockSystemSectionEnabled,
+		"willow-dock-system-section-side": (value) =>
+			setDockSystemSectionSide(String(value) === "left" ? "left" : "right"),
+		"willow-dock-system-drives": setDockSystemDrives,
+		"willow-dock-system-downloads": setDockSystemDownloads,
+		"willow-dock-system-documents": setDockSystemDocuments,
+		"willow-dock-system-pictures": setDockSystemPictures,
+		"willow-dock-system-recycle-bin": setDockSystemRecycleBin,
 		"willow-scale": setScale
 	});
+
+	useEffect(() => {
+		if (!dockSystemSectionEnabled) {
+			setSystemItems([]);
+			return;
+		}
+
+		let active = true;
+		let refreshing = false;
+		const refresh = async () => {
+			if (refreshing) return;
+			refreshing = true;
+			try {
+				const items = await invoke<DockSystemItem[]>("get_dock_system_items");
+				if (active) setSystemItems(items);
+			} catch (error) {
+				console.error("Não foi possível atualizar os atalhos do sistema:", error);
+			} finally {
+				refreshing = false;
+			}
+		};
+
+		refresh();
+		const interval = setInterval(refresh, 8000);
+		return () => {
+			active = false;
+			clearInterval(interval);
+		};
+	}, [dockSystemSectionEnabled]);
 
 	useEffect(() => {
 		let pollSeq = 0;
@@ -633,6 +710,27 @@ const Dock = memo(function Dock() {
 		[dockItems]
 	);
 	const unpinnedItems = useMemo(() => dockItems.filter((i) => !i.is_pinned), [dockItems]);
+	const visibleSystemItems = useMemo(
+		() =>
+			systemItems.filter((item) => {
+				if (["drive", "removable", "network", "optical"].includes(item.kind)) {
+					return dockSystemDrives;
+				}
+				if (item.kind === "downloads") return dockSystemDownloads;
+				if (item.kind === "documents") return dockSystemDocuments;
+				if (item.kind === "pictures") return dockSystemPictures;
+				if (item.kind === "recycle-bin") return dockSystemRecycleBin;
+				return false;
+			}),
+		[
+			systemItems,
+			dockSystemDrives,
+			dockSystemDownloads,
+			dockSystemDocuments,
+			dockSystemPictures,
+			dockSystemRecycleBin
+		]
+	);
 
 	// Latest state for the Win+Number listener, which subscribes only once.
 	useEffect(() => {
@@ -821,6 +919,11 @@ const Dock = memo(function Dock() {
 								transition={{ duration: 0.15 }}
 								className="dock-reorder-container"
 							>
+								{dockSystemSectionEnabled &&
+									dockSystemSectionSide === "left" &&
+									visibleSystemItems.length > 0 && (
+										<SystemDockSection items={visibleSystemItems} side="left" />
+									)}
 								{startItem && (
 									<motion.div
 										initial={{ opacity: 0, scale: 0 }}
@@ -1168,6 +1271,12 @@ const Dock = memo(function Dock() {
 										{app.is_running && <div className="active-indicator" />}
 									</motion.div>
 								))}
+
+								{dockSystemSectionEnabled &&
+									dockSystemSectionSide === "right" &&
+									visibleSystemItems.length > 0 && (
+										<SystemDockSection items={visibleSystemItems} side="right" />
+									)}
 							</motion.div>
 						)}
 					</AnimatePresence>
@@ -1394,6 +1503,59 @@ const Dock = memo(function Dock() {
 		</div>
 	);
 });
+
+function SystemDockSection({ items, side }: { items: DockSystemItem[]; side: "left" | "right" }) {
+	return (
+		<motion.div
+			layout
+			className={`dock-system-section dock-system-section-${side}`}
+			initial={{ opacity: 0, scale: 0.9 }}
+			animate={{ opacity: 1, scale: 1 }}
+			exit={{ opacity: 0, scale: 0.9 }}
+			transition={{ duration: 0.18 }}
+			aria-label="Atalhos do sistema"
+		>
+			{items.map((item) => (
+				<motion.button
+					layout
+					type="button"
+					key={item.id}
+					className="dock-icon-wrapper dock-system-button"
+					onClick={(event) => {
+						event.stopPropagation();
+						invoke("open_system_location", { path: item.path }).catch((error) =>
+							console.error(`Não foi possível abrir ${item.name}:`, error)
+						);
+					}}
+					initial={ITEM_INITIAL}
+					animate={ITEM_ANIMATE}
+					exit={ITEM_EXIT}
+					transition={ITEM_ENTRY_TRANSITION}
+				>
+					<div className="tooltip">{item.name}</div>
+					<motion.div
+						className="dock-icon dock-system-icon"
+						whileHover={{ y: -5, scale: 1.1 }}
+						whileTap={{ scale: 0.95 }}
+					>
+						<SystemDockIcon kind={item.kind} />
+					</motion.div>
+				</motion.button>
+			))}
+		</motion.div>
+	);
+}
+
+function SystemDockIcon({ kind }: { kind: string }) {
+	if (kind === "removable") return <Usb aria-hidden="true" />;
+	if (kind === "network") return <Network aria-hidden="true" />;
+	if (kind === "optical") return <Disc3 aria-hidden="true" />;
+	if (kind === "downloads") return <Download aria-hidden="true" />;
+	if (kind === "documents") return <FileText aria-hidden="true" />;
+	if (kind === "pictures") return <Images aria-hidden="true" />;
+	if (kind === "recycle-bin") return <Trash2 aria-hidden="true" />;
+	return <HardDrive aria-hidden="true" />;
+}
 
 function AddAppPopup({
 	onClose,

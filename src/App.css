@@ -654,9 +654,8 @@ img {
 
 .screen-corner {
 	position: absolute;
-	width: 38px;
-	height: 38px;
-	background: #000;
+	width: 40px;
+	height: 40px;
 	z-index: 999999;
 	pointer-events: none;
 }
@@ -664,15 +663,13 @@ img {
 .top-left {
 	top: 0;
 	left: 0;
-	-webkit-clip-path: path("M 0 0 L 36 0 C 18 0, 0 18, 0 36 Z");
-	clip-path: path("M 0 0 L 36 0 C 18 0, 0 18, 0 36 Z");
+	background: radial-gradient(circle at 40px 40px, transparent 0 39px, #000 40px);
 }
 
 .top-right {
 	top: 0;
 	right: 0;
-	-webkit-clip-path: path("M 38 0 L 2 0 C 20 0, 38 18, 38 36 Z");
-	clip-path: path("M 38 0 L 2 0 C 20 0, 38 18, 38 36 Z");
+	background: radial-gradient(circle at 0 40px, transparent 0 39px, #000 40px);
 }
 
 .bottom-left {

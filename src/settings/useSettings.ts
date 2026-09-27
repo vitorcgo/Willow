@@ -37,7 +37,9 @@ function matchesCountry(result: WeatherCityResult, expected: string): boolean {
 	if (result.countryCode.length === 2) {
 		for (const locale of ["pt-BR", "en"]) {
 			try {
-				const localized = new Intl.DisplayNames([locale], { type: "region" }).of(result.countryCode);
+				const localized = new Intl.DisplayNames([locale], { type: "region" }).of(
+					result.countryCode
+				);
 				if (localized) names.push(localized);
 			} catch {
 				// The country name returned by the API is still available as a fallback.
@@ -78,8 +80,8 @@ export function useSettings() {
 	);
 	const [mediaAmbienceEnabled, setMediaAmbienceEnabled] = useState(true);
 	const [mediaCompactGlowEnabled, setMediaCompactGlowEnabled] = useState(true);
-	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(
-		() => (localStorage.getItem("willow-media-layout") as "classic" | "compact") || "classic"
+	const [mediaLayout, setMediaLayout] = useState<"classic" | "compact">(() =>
+		localStorage.getItem("willow-media-layout") === "compact" ? "compact" : "classic"
 	);
 	const [cornersEnabled, setCornersEnabled] = useState(
 		() => localStorage.getItem("willow-corners-enabled") === "true"
@@ -113,11 +115,42 @@ export function useSettings() {
 	const [dockWinNumberEnabled, setDockWinNumberEnabled] = useState(
 		() => localStorage.getItem("willow-dock-win-number-enabled") !== "false"
 	);
+	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
+		() => localStorage.getItem("willow-dock-system-section-enabled") !== "false"
+	);
+	const [dockSystemSectionSide, setDockSystemSectionSide] = useState(() =>
+		localStorage.getItem("willow-dock-system-section-side") === "left" ? "left" : "right"
+	);
+	const [dockSystemDrives, setDockSystemDrives] = useState(
+		() => localStorage.getItem("willow-dock-system-drives") !== "false"
+	);
+	const [dockSystemDownloads, setDockSystemDownloads] = useState(
+		() => localStorage.getItem("willow-dock-system-downloads") !== "false"
+	);
+	const [dockSystemDocuments, setDockSystemDocuments] = useState(
+		() => localStorage.getItem("willow-dock-system-documents") === "true"
+	);
+	const [dockSystemPictures, setDockSystemPictures] = useState(
+		() => localStorage.getItem("willow-dock-system-pictures") === "true"
+	);
+	const [dockSystemRecycleBin, setDockSystemRecycleBin] = useState(
+		() => localStorage.getItem("willow-dock-system-recycle-bin") !== "false"
+	);
 	const [dockMode, setDockMode] = useState(() => {
 		const raw = localStorage.getItem("willow-dock-mode") || "smart";
 		return raw === "auto-hide" ? "smart" : raw;
 	});
 	const [notchMode, setNotchMode] = useState("fixed");
+	const [notchTriggerPosition, setNotchTriggerPosition] = useState(() => {
+		const saved = localStorage.getItem("willow-notch-trigger-position");
+		return ["left", "center", "right", "disabled"].includes(saved || "") ? saved! : "center";
+	});
+	const [notchTriggerWidth, setNotchTriggerWidth] = useState(() =>
+		parseInt(localStorage.getItem("willow-notch-trigger-width") || "20")
+	);
+	const [notchTriggerHeight, setNotchTriggerHeight] = useState(() =>
+		parseInt(localStorage.getItem("willow-notch-trigger-height") || "4")
+	);
 	const [aiMode, setAiMode] = useState(() => localStorage.getItem("willow-ai-mode") || "smart");
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(20);
 	const [updateStatus, setUpdateStatus] = useState<
@@ -126,7 +159,7 @@ export function useSettings() {
 	const [updateVersion, setUpdateVersion] = useState("");
 	const [appVersion, setAppVersion] = useState("");
 	const [autoUpdate, setAutoUpdate] = useState(
-		() => localStorage.getItem("willow-auto-update") === "true"
+		() => localStorage.getItem("willow-auto-update") !== "false"
 	);
 	const [scale, setScale] = useState(() =>
 		parseFloat(localStorage.getItem("willow-scale") || "1.0")
@@ -183,6 +216,9 @@ export function useSettings() {
 			apply(getVal("willow-brightness-overlay-enabled"), setBrightnessOverlayEnabled, readBool);
 			apply(getVal("willow-media-ambience-enabled"), setMediaAmbienceEnabled, readBool);
 			apply(getVal("willow-media-compact-glow-enabled"), setMediaCompactGlowEnabled, readBool);
+			apply(getVal("willow-media-layout"), setMediaLayout, (v) =>
+				v === "compact" ? "compact" : "classic"
+			);
 			apply(getVal("willow-corners-enabled"), setCornersEnabled, readBool);
 			apply(getVal("willow-time-format-24h"), setTimeFormat24h, readBool);
 			apply(getVal("willow-show-update-indicator"), setShowUpdateIndicator, readBool);
@@ -194,12 +230,30 @@ export function useSettings() {
 			apply(getVal("willow-dock-icon-only"), setDockIconOnly, readBool);
 			apply(getVal("willow-dock-adaptive"), setDockAdaptive, readBool);
 			apply(getVal("willow-dock-win-number-enabled"), setDockWinNumberEnabled, readBool);
+			apply(getVal("willow-dock-system-section-enabled"), setDockSystemSectionEnabled, readBool);
+			apply(getVal("willow-dock-system-section-side"), setDockSystemSectionSide, (value) =>
+				value === "left" ? "left" : "right"
+			);
+			apply(getVal("willow-dock-system-drives"), setDockSystemDrives, readBool);
+			apply(getVal("willow-dock-system-downloads"), setDockSystemDownloads, readBool);
+			apply(getVal("willow-dock-system-documents"), setDockSystemDocuments, readBool);
+			apply(getVal("willow-dock-system-pictures"), setDockSystemPictures, readBool);
+			apply(getVal("willow-dock-system-recycle-bin"), setDockSystemRecycleBin, readBool);
 
 			apply(getVal("willow-temp-unit"), setTempUnitFahrenheit, (v) => v === "fahrenheit");
 			apply(getVal("willow-scale"), setScale, parseFloat);
 			apply(getVal("willow-low-battery-threshold"), setLowBatteryThreshold, parseInt);
 
 			apply(getVal("willow-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
+			apply(getVal("willow-notch-trigger-position"), setNotchTriggerPosition, (v) =>
+				["left", "center", "right", "disabled"].includes(v) ? v : "center"
+			);
+			apply(getVal("willow-notch-trigger-width"), setNotchTriggerWidth, (v) =>
+				Math.min(50, Math.max(5, parseInt(v) || 20))
+			);
+			apply(getVal("willow-notch-trigger-height"), setNotchTriggerHeight, (v) =>
+				Math.min(16, Math.max(2, parseInt(v) || 4))
+			);
 			apply(getVal("willow-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("willow-ai-mode"), setAiMode, (v) =>
 				["fixed", "smart", "hidden"].includes(v) ? v : "smart"
@@ -250,12 +304,28 @@ export function useSettings() {
 	useSettingsSync({
 		"willow-dock-mode": setDockMode,
 		"willow-notch-mode": setNotchMode,
+		"willow-notch-trigger-position": (value) =>
+			setNotchTriggerPosition(
+				["left", "center", "right", "disabled"].includes(String(value)) ? String(value) : "center"
+			),
+		"willow-notch-trigger-width": (value) =>
+			setNotchTriggerWidth(Math.min(50, Math.max(5, Number(value) || 20))),
+		"willow-notch-trigger-height": (value) =>
+			setNotchTriggerHeight(Math.min(16, Math.max(2, Number(value) || 4))),
 		"willow-ai-mode": setAiMode,
 		"willow-dock-enabled": setDockEnabled,
 		"willow-dock-icon-only": setDockIconOnly,
 		"willow-dock-preview-enabled": setDockPreviewEnabled,
 		"willow-dock-adaptive": setDockAdaptive,
 		"willow-dock-win-number-enabled": setDockWinNumberEnabled,
+		"willow-dock-system-section-enabled": setDockSystemSectionEnabled,
+		"willow-dock-system-section-side": (value) =>
+			setDockSystemSectionSide(String(value) === "left" ? "left" : "right"),
+		"willow-dock-system-drives": setDockSystemDrives,
+		"willow-dock-system-downloads": setDockSystemDownloads,
+		"willow-dock-system-documents": setDockSystemDocuments,
+		"willow-dock-system-pictures": setDockSystemPictures,
+		"willow-dock-system-recycle-bin": setDockSystemRecycleBin,
 		"willow-weather-enabled": setWeatherEnabled,
 		"willow-calendar-enabled": setCalendarEnabled,
 		"willow-timer-sound-enabled": setTimerSoundEnabled,
@@ -581,6 +651,38 @@ export function useSettings() {
 		saveSetting("willow-dock-win-number-enabled", String(next));
 	};
 
+	const toggleDockSystemSection = () => {
+		const next = !dockSystemSectionEnabled;
+		setDockSystemSectionEnabled(next);
+		saveSetting("willow-dock-system-section-enabled", String(next));
+	};
+
+	const setDockSystemSectionSideValue = (side: string) => {
+		const next = side === "left" ? "left" : "right";
+		setDockSystemSectionSide(next);
+		saveSetting("willow-dock-system-section-side", next);
+	};
+
+	const toggleDockSystemItem = (item: string) => {
+		const entries = {
+			drives: [dockSystemDrives, setDockSystemDrives, "willow-dock-system-drives"],
+			downloads: [dockSystemDownloads, setDockSystemDownloads, "willow-dock-system-downloads"],
+			documents: [dockSystemDocuments, setDockSystemDocuments, "willow-dock-system-documents"],
+			pictures: [dockSystemPictures, setDockSystemPictures, "willow-dock-system-pictures"],
+			"recycle-bin": [
+				dockSystemRecycleBin,
+				setDockSystemRecycleBin,
+				"willow-dock-system-recycle-bin"
+			]
+		} as const;
+		const entry = entries[item as keyof typeof entries];
+		if (!entry) return;
+		const [current, setter, key] = entry;
+		const next = !current;
+		setter(next);
+		saveSetting(key, String(next));
+	};
+
 	const toggleAutoUpdate = () => {
 		const next = !autoUpdate;
 		setAutoUpdate(next);
@@ -596,6 +698,24 @@ export function useSettings() {
 	const setNotchModeValue = (newMode: string) => {
 		setNotchMode(newMode);
 		saveSetting("willow-notch-mode", newMode);
+	};
+
+	const setNotchTriggerPositionValue = (position: string) => {
+		if (!["left", "center", "right", "disabled"].includes(position)) return;
+		setNotchTriggerPosition(position);
+		saveSetting("willow-notch-trigger-position", position);
+	};
+
+	const setNotchTriggerWidthValue = (width: number) => {
+		const next = Math.min(50, Math.max(5, width));
+		setNotchTriggerWidth(next);
+		saveSetting("willow-notch-trigger-width", String(next));
+	};
+
+	const setNotchTriggerHeightValue = (height: number) => {
+		const next = Math.min(16, Math.max(2, height));
+		setNotchTriggerHeight(next);
+		saveSetting("willow-notch-trigger-height", String(next));
 	};
 
 	const setAiModeValue = (newMode: string) => {
@@ -796,6 +916,12 @@ export function useSettings() {
 		// Notch
 		notchMode,
 		setNotchModeValue,
+		notchTriggerPosition,
+		setNotchTriggerPositionValue,
+		notchTriggerWidth,
+		setNotchTriggerWidthValue,
+		notchTriggerHeight,
+		setNotchTriggerHeightValue,
 		aiMode,
 		setAiModeValue,
 		calendarEnabled,
@@ -845,6 +971,16 @@ export function useSettings() {
 		toggleDockAdaptive,
 		dockWinNumberEnabled,
 		toggleDockWinNumber,
+		dockSystemSectionEnabled,
+		toggleDockSystemSection,
+		dockSystemSectionSide,
+		setDockSystemSectionSideValue,
+		dockSystemDrives,
+		dockSystemDownloads,
+		dockSystemDocuments,
+		dockSystemPictures,
+		dockSystemRecycleBin,
+		toggleDockSystemItem,
 
 		// Overlays
 		volumeOverlayEnabled,

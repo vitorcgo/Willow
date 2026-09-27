@@ -1,5 +1,8 @@
 import {
 	PanelTop,
+	MoveHorizontal,
+	MoveVertical,
+	MapPin,
 	Calendar,
 	BellRing,
 	Music,
@@ -18,6 +21,12 @@ import type { WeatherCityResult } from "./useSettings";
 interface NotchTabProps {
 	notchMode: string;
 	setNotchModeValue: (mode: string) => void;
+	notchTriggerPosition: string;
+	setNotchTriggerPositionValue: (position: string) => void;
+	notchTriggerWidth: number;
+	setNotchTriggerWidthValue: (width: number) => void;
+	notchTriggerHeight: number;
+	setNotchTriggerHeightValue: (height: number) => void;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
 	timerSoundEnabled: boolean;
@@ -52,6 +61,12 @@ interface NotchTabProps {
 export function NotchTab({
 	notchMode,
 	setNotchModeValue,
+	notchTriggerPosition,
+	setNotchTriggerPositionValue,
+	notchTriggerWidth,
+	setNotchTriggerWidthValue,
+	notchTriggerHeight,
+	setNotchTriggerHeightValue,
 	calendarEnabled,
 	toggleCalendar,
 	timerSoundEnabled,
@@ -86,7 +101,11 @@ export function NotchTab({
 		<>
 			<div className="setting-group-label">ILHA</div>
 			<div className="setting-group">
-				<SettingRow icon={PanelTop} label="Comportamento da ilha" desc="Escolha como a ilha aparece">
+				<SettingRow
+					icon={PanelTop}
+					label="Comportamento da ilha"
+					desc="Escolha como a ilha aparece"
+				>
 					<select
 						className="settings-select"
 						value={notchMode}
@@ -98,7 +117,74 @@ export function NotchTab({
 					</select>
 				</SettingRow>
 
-				<SettingRow icon={Calendar} label="Calendário e temporizador" desc="Ativa a visão dividida de produtividade">
+				{notchMode !== "fixed" && (
+					<>
+						<SettingRow
+							icon={MapPin}
+							label="Posição do gatilho"
+							desc="Escolha onde a borda superior revela a ilha"
+						>
+							<select
+								className="settings-select"
+								value={notchTriggerPosition}
+								onChange={(event) => setNotchTriggerPositionValue(event.target.value)}
+							>
+								<option value="left">Esquerda</option>
+								<option value="center">Centro</option>
+								<option value="right">Direita</option>
+								<option value="disabled">Desativado</option>
+							</select>
+						</SettingRow>
+
+						{notchTriggerPosition !== "disabled" && (
+							<>
+								<SettingRow
+									icon={MoveHorizontal}
+									label="Largura do gatilho"
+									desc={`${notchTriggerWidth}% da largura da tela`}
+								>
+									<div className="settings-slider-with-value">
+										<input
+											type="range"
+											min="5"
+											max="50"
+											step="5"
+											value={notchTriggerWidth}
+											onChange={(event) => setNotchTriggerWidthValue(parseInt(event.target.value))}
+											className="settings-slider"
+										/>
+										<span>{notchTriggerWidth}%</span>
+									</div>
+								</SettingRow>
+
+								<SettingRow
+									icon={MoveVertical}
+									label="Altura sensível"
+									desc={`${notchTriggerHeight}px a partir da borda superior`}
+								>
+									<div className="settings-slider-with-value">
+										<input
+											type="range"
+											min="2"
+											max="16"
+											step="2"
+											value={notchTriggerHeight}
+											onChange={(event) => setNotchTriggerHeightValue(parseInt(event.target.value))}
+											className="settings-slider"
+										/>
+										<span>{notchTriggerHeight}px</span>
+									</div>
+								</SettingRow>
+							</>
+						)}
+					</>
+				)}
+
+				<SettingRow
+					icon={Calendar}
+					label="Calendário e temporizador"
+					desc="Ativa a visão dividida de produtividade"
+				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={calendarEnabled} onChange={toggleCalendar} />
 						<span className="slider"></span>
@@ -142,20 +228,28 @@ export function NotchTab({
 							</label>
 						</SettingRow>
 
-						<SettingRow icon={LayoutList} label="Layout de mídia" desc="Escolha o estilo do reprodutor expandido">
+						<SettingRow
+							icon={LayoutList}
+							label="Layout de mídia"
+							desc="Escolha o estilo do reprodutor expandido"
+						>
 							<div className="unit-toggle-minimal wide">
-								<span
+								<button
+									type="button"
 									className={mediaLayout === "classic" ? "active" : ""}
 									onClick={() => toggleMediaLayout("classic")}
+									aria-pressed={mediaLayout === "classic"}
 								>
 									Clássico
-								</span>
-								<span
+								</button>
+								<button
+									type="button"
 									className={mediaLayout === "compact" ? "active" : ""}
 									onClick={() => toggleMediaLayout("compact")}
+									aria-pressed={mediaLayout === "compact"}
 								>
 									Compacto
-								</span>
+								</button>
 							</div>
 						</SettingRow>
 
@@ -262,10 +356,14 @@ export function NotchTab({
 							</div>
 						)}
 						{citySearchStatus === "empty" && (
-							<div className="city-search-message">Local não encontrado. Use cidade, estado, país.</div>
+							<div className="city-search-message">
+								Local não encontrado. Use cidade, estado, país.
+							</div>
 						)}
 						{citySearchStatus === "error" && (
-							<div className="city-search-message error">Não foi possível consultar os locais agora.</div>
+							<div className="city-search-message error">
+								Não foi possível consultar os locais agora.
+							</div>
 						)}
 					</div>
 				)}

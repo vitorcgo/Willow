@@ -74,7 +74,11 @@ export function AboutTab({
 
 			<div className="setting-group-label">Atualizações</div>
 			<div className="setting-group">
-				<SettingRow icon={Download} label="Verificar ao iniciar" desc="Avisa quando existir uma versão mais recente">
+				<SettingRow
+					icon={Download}
+					label="Verificação automática"
+					desc="Verifica ao iniciar e a cada quatro horas"
+				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={autoUpdate} onChange={toggleAutoUpdate} />
 						<span className="slider"></span>

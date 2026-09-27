@@ -1,4 +1,18 @@
-import { Monitor, Eye, EyeOff, Circle, Maximize2, Keyboard } from "lucide-react";
+import {
+	Monitor,
+	Eye,
+	EyeOff,
+	Circle,
+	Maximize2,
+	Keyboard,
+	HardDrive,
+	Download,
+	FileText,
+	Images,
+	Trash2,
+	MoveHorizontal
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { SettingRow } from "./SettingRow";
 
 interface DockTabProps {
@@ -14,6 +28,16 @@ interface DockTabProps {
 	toggleDockAdaptive: () => void;
 	dockWinNumberEnabled: boolean;
 	toggleDockWinNumber: () => void;
+	dockSystemSectionEnabled: boolean;
+	toggleDockSystemSection: () => void;
+	dockSystemSectionSide: string;
+	setDockSystemSectionSideValue: (side: string) => void;
+	dockSystemDrives: boolean;
+	dockSystemDownloads: boolean;
+	dockSystemDocuments: boolean;
+	dockSystemPictures: boolean;
+	dockSystemRecycleBin: boolean;
+	toggleDockSystemItem: (item: string) => void;
 }
 
 export function DockTab({
@@ -28,13 +52,27 @@ export function DockTab({
 	dockAdaptive,
 	toggleDockAdaptive,
 	dockWinNumberEnabled,
-	toggleDockWinNumber
+	toggleDockWinNumber,
+	dockSystemSectionEnabled,
+	toggleDockSystemSection,
+	dockSystemSectionSide,
+	setDockSystemSectionSideValue,
+	dockSystemDrives,
+	dockSystemDownloads,
+	dockSystemDocuments,
+	dockSystemPictures,
+	dockSystemRecycleBin,
+	toggleDockSystemItem
 }: DockTabProps) {
 	return (
 		<>
 			<div className="setting-group-label">DOCK</div>
 			<div className="setting-group">
-				<SettingRow icon={Monitor} label="Willow Dock" desc="Substitui a barra de tarefas do Windows">
+				<SettingRow
+					icon={Monitor}
+					label="Willow Dock"
+					desc="Substitui a barra de tarefas do Windows"
+				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={dockEnabled} onChange={toggleDock} />
 						<span className="slider"></span>
@@ -59,7 +97,11 @@ export function DockTab({
 							</select>
 						</SettingRow>
 
-						<SettingRow icon={Eye} label="Mostrar prévias dos aplicativos" desc="Mostra miniaturas ao passar o mouse">
+						<SettingRow
+							icon={Eye}
+							label="Mostrar prévias dos aplicativos"
+							desc="Mostra miniaturas ao passar o mouse"
+						>
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockPreviewEnabled} onChange={toggleDockPreview} />
 								<span className="slider"></span>
@@ -110,6 +152,109 @@ export function DockTab({
 					</>
 				)}
 			</div>
+
+			{dockEnabled && (
+				<>
+					<div className="setting-group-label">SEÇÃO DO SISTEMA</div>
+					<div className="setting-group">
+						<SettingRow
+							icon={HardDrive}
+							label="Atalhos do sistema"
+							desc="Separa unidades, pastas e Lixeira dos aplicativos"
+						>
+							<label className="toggle-switch">
+								<input
+									type="checkbox"
+									checked={dockSystemSectionEnabled}
+									onChange={toggleDockSystemSection}
+								/>
+								<span className="slider"></span>
+							</label>
+						</SettingRow>
+
+						{dockSystemSectionEnabled && (
+							<>
+								<SettingRow
+									icon={MoveHorizontal}
+									label="Posição da seção"
+									desc="Escolha de qual lado ficam os atalhos"
+								>
+									<select
+										className="settings-select"
+										value={dockSystemSectionSide}
+										onChange={(event) => setDockSystemSectionSideValue(event.target.value)}
+									>
+										<option value="left">Esquerda</option>
+										<option value="right">Direita</option>
+									</select>
+								</SettingRow>
+
+								<SystemItemRow
+									icon={HardDrive}
+									label="Unidades conectadas"
+									desc="Discos locais, USB, rede e mídia removível"
+									checked={dockSystemDrives}
+									onChange={() => toggleDockSystemItem("drives")}
+								/>
+								<SystemItemRow
+									icon={Download}
+									label="Downloads"
+									desc="Abre sua pasta de downloads"
+									checked={dockSystemDownloads}
+									onChange={() => toggleDockSystemItem("downloads")}
+								/>
+								<SystemItemRow
+									icon={FileText}
+									label="Documentos"
+									desc="Abre sua pasta de documentos"
+									checked={dockSystemDocuments}
+									onChange={() => toggleDockSystemItem("documents")}
+								/>
+								<SystemItemRow
+									icon={Images}
+									label="Imagens"
+									desc="Abre sua pasta de imagens"
+									checked={dockSystemPictures}
+									onChange={() => toggleDockSystemItem("pictures")}
+								/>
+								<SystemItemRow
+									icon={Trash2}
+									label="Lixeira"
+									desc="Abre a Lixeira do Windows"
+									checked={dockSystemRecycleBin}
+									onChange={() => toggleDockSystemItem("recycle-bin")}
+									divider={false}
+								/>
+							</>
+						)}
+					</div>
+				</>
+			)}
 		</>
+	);
+}
+
+function SystemItemRow({
+	icon,
+	label,
+	desc,
+	checked,
+	onChange,
+	divider = true
+}: {
+	icon: ComponentType<{ size?: number; strokeWidth?: number }>;
+	label: string;
+	desc: string;
+	checked: boolean;
+	onChange: () => void;
+	divider?: boolean;
+}) {
+	return (
+		<SettingRow icon={icon} label={label} desc={desc} divider={divider}>
+			<label className="toggle-switch">
+				<input type="checkbox" checked={checked} onChange={onChange} />
+				<span className="slider"></span>
+			</label>
+		</SettingRow>
 	);
 }
