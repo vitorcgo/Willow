@@ -36,7 +36,9 @@ img {
 	justify-content: flex-start;
 	position: relative;
 	--notch-bg: var(--willow-bg, rgba(0, 0, 0, 0.8));
-	background: var(--notch-bg);
+	background-color: var(--notch-bg);
+	background-image: var(--willow-material-background, none);
+	box-shadow: inset 0 1px 0 var(--willow-material-highlight, transparent);
 	backdrop-filter: var(--willow-backdrop-filter, blur(18px));
 	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(18px));
 	border-radius: 0 0 18px 18px;
@@ -1148,53 +1150,30 @@ img {
 	padding: 2px 4px;
 }
 
-.music-mode-shortcuts {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	z-index: 6;
-}
-
-.music-mode-shortcut {
-	position: absolute;
-	top: 9px;
-	pointer-events: auto;
-	width: 22px;
-	height: 30px;
+.music-back-button {
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	flex: 0 0 auto;
+	display: grid;
+	place-items: center;
 	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.13));
-	border-radius: 9px;
-	background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035));
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.08),
-		0 5px 14px rgba(0, 0, 0, 0.2);
-	backdrop-filter: blur(12px);
-	-webkit-backdrop-filter: blur(12px);
+	border-radius: 50%;
+	background: var(--willow-group-bg, rgba(255, 255, 255, 0.07));
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.72));
+	cursor: pointer;
+	transition: 150ms ease;
 }
 
-.music-mode-shortcut.left {
-	left: 4px;
+.music-back-button:hover {
+	background: var(--willow-accent-soft, rgba(0, 122, 255, 0.2));
+	color: var(--willow-text, #fff);
+	transform: translateX(-1px);
 }
 
-.music-mode-shortcut.right {
-	right: 4px;
-}
-
-.music-mode-shortcut:hover,
-.music-mode-shortcut.active {
-	transform: translateY(-1px);
-	background: linear-gradient(
-		180deg,
-		var(--willow-accent-soft, rgba(0, 122, 255, 0.24)),
-		rgba(255, 255, 255, 0.05)
-	);
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.13),
-		0 6px 18px var(--willow-accent-soft, rgba(0, 0, 0, 0.24));
-}
-
-.music-mode-shortcut svg {
-	width: 11px;
-	height: 11px;
+.music-back-button svg {
+	width: 10px;
+	height: 10px;
 }
 
 .compact-premium-layout {

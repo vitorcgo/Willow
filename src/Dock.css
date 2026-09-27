@@ -204,7 +204,8 @@ body {
 	gap: 12px;
 	padding: 8px 8px;
 	border-radius: 18px 18px 0 0;
-	background: var(--willow-bg, rgba(0, 0, 0, 0.8));
+	background-color: var(--willow-bg, rgba(0, 0, 0, 0.8));
+	background-image: var(--willow-material-background, none);
 	backdrop-filter: var(--willow-backdrop-filter, blur(20px));
 	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(20px));
 	border: none;
@@ -242,10 +243,37 @@ body {
 }
 
 .dock-settings-launcher .dock-icon {
+	position: relative;
+	width: 42px;
+	height: 42px;
 	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.12));
 	box-shadow:
 		0 0 0 1px var(--willow-accent-muted, rgba(255, 255, 255, 0.12)),
-		0 5px 16px var(--willow-accent-glow, rgba(0, 0, 0, 0.18));
+		0 5px 16px var(--willow-accent-glow, rgba(0, 0, 0, 0.18)),
+		0 0 22px var(--willow-accent-glow, rgba(0, 122, 255, 0.42));
+}
+
+.dock-settings-launcher .dock-icon::before {
+	content: "";
+	position: absolute;
+	inset: -9px;
+	border-radius: 50%;
+	background: radial-gradient(
+		circle,
+		var(--willow-accent-glow, rgba(0, 122, 255, 0.42)),
+		transparent 68%
+	);
+	opacity: 0.68;
+	filter: blur(6px);
+	pointer-events: none;
+}
+
+.dock-settings-launcher .dock-icon img.willow-icon-img {
+	position: relative;
+	z-index: 1;
+	width: 50px;
+	height: 50px;
+	filter: drop-shadow(0 0 8px var(--willow-accent-glow, rgba(0, 122, 255, 0.5)));
 }
 
 .dock-reorder-container > .dock-icon-wrapper:not(.dock-settings-launcher) {
@@ -383,6 +411,18 @@ body {
 .dock-icon-only .dock-icon img {
 	width: 32px;
 	height: 32px;
+}
+
+.dock-icon-only .dock-settings-launcher .dock-icon {
+	width: 44px;
+	height: 44px;
+	border-radius: 14px;
+	box-shadow: 0 0 24px var(--willow-accent-glow, rgba(0, 122, 255, 0.48));
+}
+
+.dock-icon-only .dock-settings-launcher .dock-icon img.willow-icon-img {
+	width: 52px;
+	height: 52px;
 }
 
 .dock-icon-only .fallback-icon {

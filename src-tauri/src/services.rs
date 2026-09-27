@@ -1824,14 +1824,20 @@ fn capability_is_active(capability: &str) -> bool {
 pub fn setup_privacy_monitor(app_handle: AppHandle) {
     std::thread::spawn(move || {
         let mut previous: Option<crate::types::PrivacyStateEvent> = None;
+        let mut last_emit = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(2))
+            .unwrap_or_else(std::time::Instant::now);
         loop {
             let current = crate::types::PrivacyStateEvent {
                 microphone: capability_is_active("microphone"),
                 camera: capability_is_active("webcam"),
             };
-            if previous.as_ref() != Some(&current) {
+            if previous.as_ref() != Some(&current)
+                || last_emit.elapsed() >= std::time::Duration::from_secs(2)
+            {
                 let _ = app_handle.emit("privacy-state", current.clone());
                 previous = Some(current);
+                last_emit = std::time::Instant::now();
             }
             std::thread::sleep(std::time::Duration::from_millis(650));
         }

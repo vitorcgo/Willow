@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 
 // Convert a hex color string to rgba with a specified alpha
 function hexToRgba(hex: string, alpha: number): string {
@@ -23,7 +24,7 @@ function getHexAlpha(hex: string): number {
 	return Number.isNaN(parsed) ? 1 : parsed / 255;
 }
 
-function applyBackgroundEffect(root: HTMLElement) {
+function applyBackgroundEffect(root: HTMLElement): string {
 	const effect = localStorage.getItem("willow-background-effect") || "acrylic";
 	root.dataset.backgroundEffect = effect;
 	const filter =
@@ -32,7 +33,36 @@ function applyBackgroundEffect(root: HTMLElement) {
 			: effect === "blur"
 				? "blur(18px) saturate(1.22)"
 				: "none";
+	const materialBackground =
+		effect === "acrylic"
+			? "radial-gradient(circle at 18% 0%, rgba(255,255,255,0.12), transparent 38%), repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 4px)"
+			: effect === "blur"
+				? "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.008))"
+				: "none";
 	root.style.setProperty("--willow-backdrop-filter", filter);
+	root.style.setProperty("--willow-material-background", materialBackground);
+	root.style.setProperty(
+		"--willow-material-highlight",
+		effect === "acrylic"
+			? "rgba(255,255,255,0.16)"
+			: effect === "blur"
+				? "rgba(255,255,255,0.09)"
+				: "transparent"
+	);
+
+	if ("__TAURI_INTERNALS__" in window) {
+		const currentWindow = getCurrentWindow();
+		if (currentWindow.label === "settings") {
+			const nativeEffect = effect === "acrylic" ? Effect.Acrylic : Effect.Blur;
+			const operation =
+				effect === "none"
+					? currentWindow.clearEffects()
+					: currentWindow.setEffects({ effects: [nativeEffect] });
+			operation.catch(() => {});
+		}
+	}
+
+	return effect;
 }
 
 function setAccentTokens(root: HTMLElement, accent: string) {
@@ -142,7 +172,7 @@ export async function applyTheme(
 	brightness?: number
 ) {
 	const root = document.documentElement;
-	applyBackgroundEffect(root);
+	const backgroundEffect = applyBackgroundEffect(root);
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("willow-theme-opacity");
@@ -159,8 +189,10 @@ export async function applyTheme(
 		brightness = cachedBrightness !== null ? parseFloat(cachedBrightness) : 0.15;
 	}
 
-	const colorAlpha = getHexAlpha(customColor);
-	const op = Math.min(1, opacity * colorAlpha);
+	const colorAlpha = mode === "custom" ? getHexAlpha(customColor) : 1;
+	const materialOpacity =
+		backgroundEffect === "blur" ? 0.72 : backgroundEffect === "acrylic" ? 0.82 : 1;
+	const op = Math.min(1, opacity * colorAlpha * materialOpacity);
 	const opExpanded = Math.min(1, op * 1.15);
 	const opaqueCustomColor = customColor.slice(0, 7);
 

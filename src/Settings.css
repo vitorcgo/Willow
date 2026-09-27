@@ -31,7 +31,8 @@ body {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	background: var(--bg-color);
+	background-color: var(--bg-color);
+	background-image: var(--willow-material-background, none);
 	backdrop-filter: var(--willow-backdrop-filter, blur(25px) saturate(200%));
 	-webkit-backdrop-filter: var(--willow-backdrop-filter, blur(25px) saturate(200%));
 	border-radius: 12px;

@@ -42,7 +42,8 @@ import {
 	MapPin,
 	RefreshCw,
 	Search,
-	Thermometer
+	Thermometer,
+	ArrowLeft
 } from "lucide-react";
 
 // Pomodoro timer limit.
@@ -999,7 +1000,12 @@ function App() {
 		});
 		const unlistenPrivacyState = listen<{ microphone: boolean; camera: boolean }>(
 			"privacy-state",
-			(event) => setPrivacyState(event.payload)
+			(event) =>
+				setPrivacyState((current) =>
+					current.microphone === event.payload.microphone && current.camera === event.payload.camera
+						? current
+						: event.payload
+				)
 		);
 
 		return () => {
@@ -1150,6 +1156,11 @@ function App() {
 		if (!settingsWeatherEnabled || temperature === null) return;
 		setIsHovered(true);
 		setWillowMode((current) => (current === "weather" ? "status" : "weather"));
+	};
+	const closeExpandedMusic = (event: React.MouseEvent) => {
+		event.stopPropagation();
+		manualMusicRef.current = false;
+		setWillowMode("status");
 	};
 
 	// Window height is now kept constant to prevent rendering layout lag and sharp corners
@@ -1946,7 +1957,7 @@ function App() {
 			return Math.min((mediaLayout === "compact" ? 356 : 396) + totalWidgets * 34, 560);
 		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
-		let w = 140 + totalWidgets * 38;
+		let w = 140;
 		if (isMusicMode) {
 			if (settingsVisualizerEnabled && isPlaying) w += 30;
 			if (settingsAlbumArtEnabled) w += 30;
@@ -2162,23 +2173,16 @@ function App() {
 											exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 500, damping: 30 }}
 										>
-											<div className="music-mode-shortcuts" aria-label="Atalhos do Willow">
-												<button
-													className="notch-control-orb music-mode-shortcut left"
-													onClick={toggleControlCenter}
-													title="Abrir controles de som e brilho"
-												>
-													<VolumeLowIcon size={11} />
-												</button>
-												<button
-													className="notch-control-orb music-mode-shortcut right"
-													onClick={toggleTrayPanel}
-													title="Abrir aplicativos ocultos"
-												>
-													<TrayIcon />
-												</button>
-											</div>
 											<div className="music-status-strip" aria-label="Indicadores do sistema">
+												<button
+													type="button"
+													className="music-back-button"
+													onClick={closeExpandedMusic}
+													title="Fechar player expandido"
+													aria-label="Fechar player expandido"
+												>
+													<ArrowLeft />
+												</button>
 												{[...statusWidgets.left, ...statusWidgets.right].map(renderStatusWidget)}
 											</div>
 											{mediaLayout === "compact" ? (
@@ -2495,7 +2499,7 @@ function App() {
 																			</motion.div>
 																		</AnimatePresence>
 																	)}
-																	{statusWidgets.left.map(renderStatusWidget)}
+																	{isHovered && statusWidgets.left.map(renderStatusWidget)}
 																</div>
 															</div>
 
@@ -2648,7 +2652,7 @@ function App() {
 																			</motion.div>
 																		</AnimatePresence>
 																	)}
-																	{statusWidgets.right.map(renderStatusWidget)}
+																	{isHovered && statusWidgets.right.map(renderStatusWidget)}
 																	{isHovered && (
 																		<button
 																			className={`notch-control-orb ${willowMode === "tray" ? "active" : ""}`}
