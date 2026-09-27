@@ -6,6 +6,48 @@ Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock pers
   <img src="src/assets/willow-logo.png" alt="Logo do Willow" width="96">
 </p>
 
+## Prévia
+
+<p align="center">
+  <img src="docs/screenshots/visao-geral.png" alt="Visão geral do Willow com ilha, painel de IA e dock" width="100%">
+</p>
+
+<p align="center"><em>Ilha dinâmica, monitor de uso de IA e dock integrados à área de trabalho.</em></p>
+
+### Ilha dinâmica
+
+<p align="center">
+  <img src="docs/screenshots/ilha-compacta.png" alt="Ilha compacta do Willow durante a reprodução de música" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/player-de-musica.png" alt="Player de música expandido do Willow" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/controles-do-sistema.png" alt="Controles de Wi-Fi, Bluetooth, volume e brilho" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/calendario-e-temporizador.png" alt="Calendário e temporizador integrados à ilha" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/indicadores.png" alt="Indicadores de clima, bateria e aplicativos" width="100%">
+</p>
+
+### Dock
+
+<p align="center">
+  <img src="docs/screenshots/dock.png" alt="Dock personalizável do Willow" width="100%">
+</p>
+
+### Configurações
+
+<p align="center">
+  <img src="docs/screenshots/configuracoes.png" alt="Tela de configurações do Willow em português" width="720">
+</p>
+
 ## Recursos
 
 • Ilha superior com relógio, calendário, temporizador e controles de mídia
