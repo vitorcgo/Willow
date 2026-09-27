@@ -7,11 +7,16 @@ import { SettingRow } from "./SettingRow";
 export function AiUsageTab() {
 	const [providers, setProviders] = useState<ProviderUsage[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
 
 	const refresh = async () => {
 		setLoading(true);
+		setError("");
 		try {
 			setProviders(await invoke<ProviderUsage[]>("get_ai_usage"));
+		} catch {
+			setProviders([]);
+			setError("Não foi possível consultar as contas agora.");
 		} finally {
 			setLoading(false);
 		}
@@ -42,7 +47,14 @@ export function AiUsageTab() {
 
 			<div className="setting-group-label setting-group-label--spaced">CONTAS ENCONTRADAS</div>
 			<div className="setting-group">
-				{providers.length === 0 ? (
+				{error ? (
+					<SettingRow
+						icon={ShieldCheck}
+						label="Consulta indisponível"
+						desc={error}
+						divider={false}
+					/>
+				) : providers.length === 0 ? (
 					<SettingRow
 						icon={ShieldCheck}
 						label="Nenhuma conta encontrada"
@@ -55,7 +67,10 @@ export function AiUsageTab() {
 							key={provider.id}
 							icon={ShieldCheck}
 							label={provider.name}
-							desc={provider.note || (provider.windows.length ? "Limites disponíveis" : "Conta detectada")}
+							desc={
+								provider.note ||
+								(provider.windows.length ? "Limites disponíveis" : "Conta detectada")
+							}
 							divider={index !== providers.length - 1}
 						>
 							<span className={`provider-state provider-state--${provider.status}`}>

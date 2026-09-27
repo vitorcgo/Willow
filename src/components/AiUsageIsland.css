@@ -4,18 +4,28 @@
 	pointer-events: none;
 	z-index: 1000;
 	font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-	color: #fff;
+	color: var(--willow-text, #fff);
+}
+
+.ai-edge-sensor {
+	position: absolute;
+	right: 0;
+	top: 50%;
+	width: 10px;
+	height: 160px;
+	transform: translateY(-50%);
+	pointer-events: auto;
 }
 
 .ai-edge-pill {
 	position: absolute;
 	right: 0;
 	top: 50%;
-	transform: translateY(-50%);
+	transform: translate(76px, -50%);
 	width: 70px;
 	padding: 18px 0;
-	background: #050607;
-	border: 1px solid #30343a;
+	background: var(--willow-bg-expanded, rgba(5, 6, 7, 0.96));
+	border: 1px solid var(--willow-border, #30343a);
 	border-right: 0;
 	border-radius: 20px 0 0 20px;
 	display: flex;
@@ -25,6 +35,14 @@
 	pointer-events: auto;
 	box-shadow: -10px 0 28px rgba(0, 0, 0, 0.18);
 	--fillet: 38px;
+	transition:
+		transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+		box-shadow 220ms ease;
+}
+
+.ai-edge-surface.expanded .ai-edge-pill {
+	transform: translate(0, -50%);
+	box-shadow: -14px 0 34px rgba(0, 0, 0, 0.28);
 }
 
 .ai-edge-pill::before,
@@ -39,12 +57,22 @@
 
 .ai-edge-pill::before {
 	top: calc(-1 * var(--fillet));
-	background: radial-gradient(circle at 0 0, transparent 36.5px, #30343a 37.5px, #050607 38.5px);
+	background: radial-gradient(
+		circle at 0 0,
+		transparent 36.5px,
+		var(--willow-border, #30343a) 37.5px,
+		var(--willow-bg-expanded, #050607) 38.5px
+	);
 }
 
 .ai-edge-pill::after {
 	bottom: calc(-1 * var(--fillet));
-	background: radial-gradient(circle at 0 100%, transparent 36.5px, #30343a 37.5px, #050607 38.5px);
+	background: radial-gradient(
+		circle at 0 100%,
+		transparent 36.5px,
+		var(--willow-border, #30343a) 37.5px,
+		var(--willow-bg-expanded, #050607) 38.5px
+	);
 }
 
 .ai-edge-cell {
@@ -52,14 +80,16 @@
 	padding: 0;
 	border: 0;
 	background: transparent;
-	color: #fff;
+	color: var(--willow-text, #fff);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
 	pointer-events: auto;
-	transition: transform 160ms ease, opacity 160ms ease;
+	transition:
+		transform 160ms ease,
+		opacity 160ms ease;
 }
 
 .ai-edge-cell:hover {
@@ -96,7 +126,7 @@
 }
 
 .ai-edge-track {
-	stroke: #2d3137;
+	stroke: var(--willow-border, #2d3137);
 }
 
 .ai-edge-value {
@@ -122,8 +152,8 @@
 	width: 7px;
 	height: 7px;
 	border-radius: 50%;
-	background: #49dd8a;
-	box-shadow: 0 0 8px #49dd8a;
+	background: var(--willow-accent, #49dd8a);
+	box-shadow: 0 0 8px var(--willow-accent-glow, #49dd8a);
 }
 
 .ai-edge-card {
@@ -134,14 +164,17 @@
 	width: 246px;
 	box-sizing: border-box;
 	padding: 16px;
-	border: 1px solid #252a30;
+	border: 1px solid var(--willow-border, #252a30);
 	border-radius: 16px;
-	background: rgba(8, 10, 12, 0.98);
+	background: var(--willow-bg-expanded, rgba(8, 10, 12, 0.98));
 	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
-	transition: opacity 150ms ease, transform 180ms ease, visibility 150ms ease;
+	transition:
+		opacity 150ms ease,
+		transform 180ms ease,
+		visibility 150ms ease;
 }
 
 .ai-edge-card.show {
@@ -158,7 +191,7 @@
 	transform: translateY(-50%);
 	width: 32px;
 	height: 36px;
-	background: #080a0c;
+	background: var(--willow-bg-expanded, #080a0c);
 	clip-path: polygon(0 0, 100% 50%, 0 100%, 22% 50%);
 	opacity: 0;
 	visibility: hidden;
@@ -194,16 +227,16 @@
 .ai-edge-card-head span,
 .ai-edge-empty {
 	font-size: 11px;
-	color: rgba(255, 255, 255, 0.5);
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.5));
 }
 
 .ai-edge-card-head button {
 	width: 27px;
 	height: 27px;
 	border-radius: 50%;
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	background: rgba(255, 255, 255, 0.07);
-	color: #fff;
+	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.12));
+	background: var(--willow-group-bg, rgba(255, 255, 255, 0.07));
+	color: var(--willow-text, #fff);
 	display: grid;
 	place-items: center;
 	cursor: pointer;
@@ -235,14 +268,14 @@
 .ai-edge-window span,
 .ai-edge-window small {
 	font-size: 10px;
-	color: rgba(255, 255, 255, 0.48);
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.48));
 }
 
 .ai-edge-meter {
 	height: 4px;
 	margin: 6px 0 4px;
 	border-radius: 99px;
-	background: #30343a;
+	background: var(--willow-border, #30343a);
 	overflow: hidden;
 }
 
@@ -250,7 +283,11 @@
 	display: block;
 	height: 100%;
 	border-radius: inherit;
-	background: linear-gradient(90deg, #6e9cff, #8edcff);
+	background: linear-gradient(
+		90deg,
+		var(--willow-accent, #6e9cff),
+		var(--willow-accent-muted, #8edcff)
+	);
 }
 
 .ai-edge-empty {
@@ -259,7 +296,9 @@
 }
 
 @keyframes ai-edge-spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .ai-edge-card .spinning {

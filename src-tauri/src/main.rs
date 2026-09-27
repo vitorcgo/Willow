@@ -200,8 +200,18 @@ fn main() {
                 });
             }
 
-            let window = app.get_webview_window("main").unwrap();
-            let dock_win = app.get_webview_window("dock").unwrap();
+            let window = app.get_webview_window("main").ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "a janela principal não foi criada",
+                )
+            })?;
+            let dock_win = app.get_webview_window("dock").ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "a janela do dock não foi criada",
+                )
+            })?;
 
             // Sync window rects initially and on event
             let win_clone = window.clone();
@@ -365,24 +375,28 @@ fn main() {
             {
                 use tauri::menu::{Menu, MenuItem};
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-                let quit_item = MenuItem::with_id(app, "quit", "Quit Willow", true, None::<&str>)?;
+                let quit_item =
+                    MenuItem::with_id(app, "quit", "Sair do Willow", true, None::<&str>)?;
                 let restart_item =
-                    MenuItem::with_id(app, "restart", "Restart Willow", true, None::<&str>)?;
+                    MenuItem::with_id(app, "restart", "Reiniciar o Willow", true, None::<&str>)?;
                 let settings_item =
-                    MenuItem::with_id(app, "settings", "Open Settings", true, None::<&str>)?;
+                    MenuItem::with_id(app, "settings", "Abrir configurações", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&settings_item, &restart_item, &quit_item])?;
                 let ah = app.handle().clone();
-                TrayIconBuilder::new()
-                    .icon(app.default_window_icon().unwrap().clone())
+                let mut tray_builder = TrayIconBuilder::new()
                     .tooltip("Willow")
                     .menu(&menu)
                     .on_menu_event(move |_, event| match event.id().as_ref() {
                         "quit" => {
                             if let Some(w) = ah.get_webview_window("main") {
-                                unregister_appbar_native(w.hwnd().unwrap());
+                                if let Ok(hwnd) = w.hwnd() {
+                                    unregister_appbar_native(hwnd);
+                                }
                             }
                             if let Some(w) = ah.get_webview_window("dock") {
-                                unregister_appbar_native(w.hwnd().unwrap());
+                                if let Ok(hwnd) = w.hwnd() {
+                                    unregister_appbar_native(hwnd);
+                                }
                             }
                             set_taskbar_visibility(true, true);
                             NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);
@@ -391,10 +405,14 @@ fn main() {
                         }
                         "restart" => {
                             if let Some(w) = ah.get_webview_window("main") {
-                                unregister_appbar_native(w.hwnd().unwrap());
+                                if let Ok(hwnd) = w.hwnd() {
+                                    unregister_appbar_native(hwnd);
+                                }
                             }
                             if let Some(w) = ah.get_webview_window("dock") {
-                                unregister_appbar_native(w.hwnd().unwrap());
+                                if let Ok(hwnd) = w.hwnd() {
+                                    unregister_appbar_native(hwnd);
+                                }
                             }
                             if let Some(w) = ah.get_webview_window("settings") {
                                 let _ = w.destroy();
@@ -419,8 +437,11 @@ fn main() {
                         {
                             crate::commands::open_settings_window(tray.app_handle().clone());
                         }
-                    })
-                    .build(app)?;
+                    });
+                if let Some(icon) = app.default_window_icon() {
+                    tray_builder = tray_builder.icon(icon.clone());
+                }
+                tray_builder.build(app)?;
             }
             Ok(())
         })

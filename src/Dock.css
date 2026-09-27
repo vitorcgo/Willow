@@ -232,6 +232,22 @@ body {
 	flex-direction: row;
 	align-items: center;
 	gap: 12px;
+	order: 1;
+}
+
+.dock-settings-launcher {
+	order: 2;
+}
+
+.dock-settings-launcher .dock-icon {
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.12));
+	box-shadow:
+		0 0 0 1px var(--willow-accent-muted, rgba(255, 255, 255, 0.12)),
+		0 5px 16px var(--willow-accent-glow, rgba(0, 0, 0, 0.18));
+}
+
+.dock-reorder-container > .dock-icon-wrapper:not(.dock-settings-launcher) {
+	order: 3;
 }
 
 .dock::before,
@@ -312,6 +328,11 @@ body {
 	user-select: none;
 }
 
+.dock-icon img.willow-icon-img {
+	width: 42px;
+	height: 42px;
+}
+
 .dock-icon svg {
 	width: 24px;
 	height: 24px;
@@ -339,9 +360,9 @@ body {
 	bottom: -4px;
 	width: 4px;
 	height: 4px;
-	background: white;
+	background: var(--willow-accent, white);
 	border-radius: 50%;
-	box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+	box-shadow: 0 0 5px var(--willow-accent-glow, rgba(255, 255, 255, 0.8));
 }
 
 .start-icon-inner {
@@ -374,7 +395,7 @@ body {
 .fallback-icon {
 	font-size: 16px;
 	font-weight: 600;
-	color: rgba(255, 255, 255, 0.7);
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.7));
 	text-transform: uppercase;
 }
 
@@ -700,11 +721,6 @@ body {
 	font-weight: 500;
 }
 
-/* Invert Willow logo / Settings icon in light mode */
-.light-mode .willow-icon-img {
-	filter: invert(1) brightness(0.15) contrast(1.2);
-}
-
 /* Light mode overrides for Dock */
 .light-mode .dock-icon {
 	background: linear-gradient(135deg, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.01) 100%);
@@ -720,8 +736,8 @@ body {
 }
 
 .light-mode .active-indicator {
-	background: var(--willow-text);
-	box-shadow: 0 0 3px var(--willow-text);
+	background: var(--willow-accent);
+	box-shadow: 0 0 4px var(--willow-accent-glow);
 }
 
 .light-mode .tooltip {

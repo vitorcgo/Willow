@@ -16,6 +16,15 @@ function hexToRgba(hex: string, alpha: number): string {
 	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function setAccentTokens(root: HTMLElement, accent: string) {
+	const accentLightness = hexToHsl(accent).l;
+	root.style.setProperty("--willow-accent", accent);
+	root.style.setProperty("--willow-accent-soft", hexToRgba(accent, 0.18));
+	root.style.setProperty("--willow-accent-muted", hexToRgba(accent, 0.55));
+	root.style.setProperty("--willow-accent-glow", hexToRgba(accent, 0.42));
+	root.style.setProperty("--willow-accent-contrast", accentLightness > 58 ? "#101114" : "#ffffff");
+}
+
 export interface HSL {
 	h: number;
 	s: number;
@@ -140,7 +149,7 @@ export async function applyTheme(
 		root.style.setProperty("--willow-text-muted", "rgba(28, 28, 30, 0.65)");
 		root.style.setProperty("--willow-border", "rgba(0, 0, 0, 0.12)");
 		root.style.setProperty("--willow-group-bg", "rgba(0, 0, 0, 0.04)");
-		root.style.setProperty("--willow-accent", "#007aff");
+		setAccentTokens(root, customColor);
 		root.style.setProperty("--willow-scrollbar-thumb", "rgba(0, 0, 0, 0.15)");
 		root.classList.add("light-mode");
 		root.classList.remove("dark-mode");
@@ -168,7 +177,7 @@ export async function applyTheme(
 			"--willow-group-bg",
 			isLight ? "rgba(0, 0, 0, 0.04)" : "rgba(255, 255, 255, 0.04)"
 		);
-		root.style.setProperty("--willow-accent", customColor);
+		setAccentTokens(root, customColor);
 		root.style.setProperty(
 			"--willow-scrollbar-thumb",
 			isLight ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.15)"
@@ -206,7 +215,7 @@ export async function applyTheme(
 				"--willow-group-bg",
 				isLight ? "rgba(0, 0, 0, 0.04)" : "rgba(255, 255, 255, 0.04)"
 			);
-			root.style.setProperty("--willow-accent", accentHex);
+			setAccentTokens(root, accentHex);
 			root.style.setProperty(
 				"--willow-scrollbar-thumb",
 				isLight ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.15)"
@@ -232,7 +241,7 @@ export async function applyTheme(
 		root.style.setProperty("--willow-text-muted", "rgba(255, 255, 255, 0.6)");
 		root.style.setProperty("--willow-border", "rgba(255, 255, 255, 0.1)");
 		root.style.setProperty("--willow-group-bg", "rgba(255, 255, 255, 0.04)");
-		root.style.setProperty("--willow-accent", "#007aff");
+		setAccentTokens(root, customColor);
 		root.style.setProperty("--willow-scrollbar-thumb", "rgba(255, 255, 255, 0.1)");
 		root.classList.add("dark-mode");
 		root.classList.remove("light-mode");
@@ -309,8 +318,10 @@ export function initTheme() {
 	// Listen to setting changes broadcasted from settings window
 	// (localStorage sync is handled by saveAndLocal in Settings.tsx; we just apply the theme)
 	const settingsPromise = listen<{ key: string; value: any }>("settings-changed", (event) => {
-		const { key } = event.payload;
+		const { key, value } = event.payload;
 		if (willowThemeKeys.includes(key)) {
+			if (value === null || value === undefined) localStorage.removeItem(key);
+			else localStorage.setItem(key, String(value));
 			applyThemeFromStorage();
 		}
 	});
@@ -331,16 +342,30 @@ export function initTheme() {
 	const externalPromise = listen<{ key: string; value: any }>(
 		"settings-external-changed",
 		(event) => {
-			const { key } = event.payload;
+			const { key, value } = event.payload;
 			if (willowThemeKeys.includes(key)) {
+				if (value === null || value === undefined) localStorage.removeItem(key);
+				else localStorage.setItem(key, String(value));
 				applyThemeFromStorage();
 			}
 		}
 	);
 
+	const localThemeHandler = (event: Event) => {
+		const key = (event as CustomEvent<{ key?: string }>).detail?.key;
+		if (!key || willowThemeKeys.includes(key)) applyThemeFromStorage();
+	};
+	const storageThemeHandler = (event: StorageEvent) => {
+		if (event.key && willowThemeKeys.includes(event.key)) applyThemeFromStorage();
+	};
+	window.addEventListener("willow-setting-changed", localThemeHandler);
+	window.addEventListener("storage", storageThemeHandler);
+
 	return () => {
 		settingsPromise.then((f) => f());
 		accentPromise.then((f) => f());
 		externalPromise.then((f) => f());
+		window.removeEventListener("willow-setting-changed", localThemeHandler);
+		window.removeEventListener("storage", storageThemeHandler);
 	};
 }

@@ -39,9 +39,13 @@ export function AppearanceTab({
 
 	return (
 		<>
-			<div className="setting-group-label">TEMA</div>
+			<div className="setting-group-label">TEMA UNIFICADO</div>
 			<div className="setting-group">
-				<SettingRow icon={Palette} label="Modo do tema" desc="Configure o visual">
+				<SettingRow
+					icon={Palette}
+					label="Modo do tema"
+					desc="Aplica o mesmo visual à ilha, ao dock, à IA e aos indicadores"
+				>
 					<select
 						className="settings-select"
 						value={themeMode}
@@ -58,7 +62,7 @@ export function AppearanceTab({
 					<SettingRow
 						icon={Droplet}
 						label="Cor do tema"
-						desc="Escolha a cor de fundo"
+						desc="Escolha uma cor para toda a interface"
 					>
 						<div className="color-picker-row">
 							<input
@@ -149,7 +153,7 @@ export function AppearanceTab({
 							className="scale-adjust-btn"
 							title="Diminuir escala"
 						>
-							:
+							−
 						</button>
 						<span className="scale-display-value">{Math.round(scale * 100)}%</span>
 						<button

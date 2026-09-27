@@ -2,13 +2,15 @@
 
 Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock personalizável, controles do sistema e monitoramento de limites de assistentes de IA.
 
-![Logo do Willow](src/assets/willow-logo.png)
+<p align="center">
+  <img src="src/assets/willow-logo.png" alt="Logo do Willow" width="96">
+</p>
 
 ## Recursos
 
 • Ilha superior com relógio, calendário, temporizador e controles de mídia
 
-• Controle de volume na esfera esquerda e controle de brilho na esfera direita
+• Controles de volume e brilho na esfera esquerda e aplicativos na esfera direita
 
 • Painel de uso de IA com atualização manual e automática a cada cinco minutos
 
@@ -23,6 +25,8 @@ Willow é um aplicativo para Windows que reúne uma ilha dinâmica, um dock pers
 • Clima, bateria, CPU, memória, disco e rede
 
 • Tema escuro, claro, personalizado e adaptável
+
+• Cor unificada entre a ilha, o dock, o monitor de IA e os indicadores
 
 • Interface em português
 

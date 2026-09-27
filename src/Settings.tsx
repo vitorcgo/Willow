@@ -1,6 +1,7 @@
 import { StrictMode, useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { listen } from "@tauri-apps/api/event";
 import { Effect } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Bot } from "lucide-react";
@@ -33,10 +34,19 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+	const [openingKey, setOpeningKey] = useState(0);
 	const settings = useSettings();
 
 	useEffect(() => {
 		return initTheme();
+	}, []);
+
+	useEffect(() => {
+		if (!isTauriRuntime) return;
+		const unlisten = listen("settings-opened", () => setOpeningKey((value) => value + 1));
+		return () => {
+			unlisten.then((remove) => remove());
+		};
 	}, []);
 
 	useEffect(() => {
@@ -65,13 +75,17 @@ function SettingsApp() {
 	const handleClose = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+		if (!appWindow) {
+			window.parent.postMessage({ type: "willow-close-settings" }, window.location.origin);
+			return;
+		}
 		try {
-			if (appWindow) await appWindow.hide();
+			await appWindow.hide();
 		} catch {}
 	};
 
 	return (
-		<div className="settings-container" style={{ zoom: settings.scale }}>
+		<div key={openingKey} className="settings-container" style={{ zoom: settings.scale }}>
 			<div className="title-bar" data-tauri-drag-region>
 				<span className="title-text" data-tauri-drag-region>
 					Configurações

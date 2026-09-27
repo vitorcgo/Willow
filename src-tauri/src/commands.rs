@@ -657,10 +657,12 @@ fn launch_path(path: &str) {
                                 }
                             }
                             app_dirs.sort();
-                            if let Some(latest) = app_dirs.last() {
-                                let exe = latest.join(Path::new(&final_path).file_name().unwrap());
-                                if exe.exists() {
-                                    final_path = exe.to_string_lossy().to_string();
+                            if let (Some(latest), Some(executable_name)) =
+                                (app_dirs.last(), Path::new(&final_path).file_name())
+                            {
+                                let executable = latest.join(executable_name);
+                                if executable.exists() {
+                                    final_path = executable.to_string_lossy().to_string();
                                 }
                             }
                         }
@@ -1576,7 +1578,10 @@ pub async fn get_app_icon(
             }
 
             if let Some(ref base64) = icon_data {
-                if let Ok(mut lock) = ICON_CACHE.get().unwrap().lock() {
+                if let Ok(mut lock) = ICON_CACHE
+                    .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+                    .lock()
+                {
                     lock.insert(ck_clone, base64.clone());
                 }
             }
@@ -1860,6 +1865,7 @@ pub fn open_settings_window(app: AppHandle) {
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_focus();
+        let _ = win.emit("settings-opened", ());
         if let Ok(hwnd) = win.hwnd() {
             unsafe {
                 use windows::Win32::UI::WindowsAndMessaging::{
@@ -2333,12 +2339,16 @@ pub fn set_volume(volume: f32) {
 pub fn restore_taskbar_and_exit(handle: &AppHandle) {
     if let Some(w) = handle.get_webview_window("main") {
         if MAIN_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-            unregister_appbar_native(w.hwnd().unwrap());
+            if let Ok(hwnd) = w.hwnd() {
+                unregister_appbar_native(hwnd);
+            }
         }
     }
     if let Some(w) = handle.get_webview_window("dock") {
         if DOCK_APPBAR_REGISTERED.load(Ordering::Relaxed) {
-            unregister_appbar_native(w.hwnd().unwrap());
+            if let Ok(hwnd) = w.hwnd() {
+                unregister_appbar_native(hwnd);
+            }
         }
     }
     set_taskbar_visibility(true, true);
@@ -2359,10 +2369,14 @@ pub async fn quit_willow(handle: AppHandle) {
 #[tauri::command]
 pub async fn restart_willow(handle: AppHandle) {
     if let Some(w) = handle.get_webview_window("main") {
-        unregister_appbar_native(w.hwnd().unwrap());
+        if let Ok(hwnd) = w.hwnd() {
+            unregister_appbar_native(hwnd);
+        }
     }
     if let Some(w) = handle.get_webview_window("dock") {
-        unregister_appbar_native(w.hwnd().unwrap());
+        if let Ok(hwnd) = w.hwnd() {
+            unregister_appbar_native(hwnd);
+        }
     }
     if let Some(w) = handle.get_webview_window("settings") {
         let _ = w.destroy();
@@ -3073,7 +3087,7 @@ pub fn setup_settings_watcher(app: AppHandle) {
                             let mut cache = crate::state::SETTINGS_CACHE
                                 .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
                                 .lock()
-                                .unwrap();
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
 
                             let mut changed = Vec::new();
                             for (key, value) in &new_settings {

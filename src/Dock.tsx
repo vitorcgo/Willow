@@ -385,7 +385,7 @@ const Dock = memo(function Dock() {
 				});
 				setCustomIcons((prev) => ({ ...prev, [target]: newIcon }));
 			} catch (err) {
-				const msg = typeof err === "string" ? err : "Failed to set icon";
+				const msg = typeof err === "string" ? err : "Não foi possível definir o ícone";
 				if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
 				setToast(msg);
 				toastTimerRef.current = setTimeout(() => setToast(null), 4000);
@@ -597,7 +597,7 @@ const Dock = memo(function Dock() {
 
 		const pinned: AppInfo[] = [
 			{
-				name: "Start",
+				name: "Configurações do Willow",
 				path: "start",
 				icon: null,
 				is_running: false,
@@ -827,7 +827,7 @@ const Dock = memo(function Dock() {
 											opacity: { duration: 0.15, delay: 0.15 },
 											scale: { type: "spring", stiffness: 400, damping: 25, delay: 0.15 }
 										}}
-										className="dock-icon-wrapper"
+										className="dock-icon-wrapper dock-settings-launcher"
 										onContextMenu={(e) => handleContextMenu(e, startItem)}
 										onMouseEnter={() => setHoveredApp(itemKey(startItem))}
 										onMouseLeave={() => {
@@ -854,7 +854,7 @@ const Dock = memo(function Dock() {
 											onPointerCancel={() => setPressedApp(null)}
 											onClick={(e) => {
 												e.stopPropagation();
-												handleAppClick(startItem);
+												invoke("open_settings_window");
 											}}
 										>
 											<img
@@ -942,7 +942,7 @@ const Dock = memo(function Dock() {
 																			<button
 																				className="preview-close-btn"
 																				onClick={(e) => handleClosePreview(e, prev.hwnd)}
-																				title="Close Window"
+																				title="Fechar janela"
 																			>
 																				<svg
 																					width="10"
@@ -1091,7 +1091,7 @@ const Dock = memo(function Dock() {
 																	<button
 																		className="preview-close-btn"
 																		onClick={(e) => handleClosePreview(e, prev.hwnd)}
-																		title="Close Window"
+																		title="Fechar janela"
 																	>
 																		<svg
 																			width="10"
@@ -1194,13 +1194,13 @@ const Dock = memo(function Dock() {
 											closeMenu();
 										}}
 									>
-										Open New Instance
+										Abrir nova instância
 									</div>
 									<div className="menu-divider" />
 								</>
 							)}
 							<div className="menu-item" onClick={() => togglePin(contextMenu.app!)}>
-								{contextMenu.app.is_pinned ? "Unpin from Dock" : "Pin to Dock"}
+								{contextMenu.app.is_pinned ? "Desafixar do dock" : "Fixar no dock"}
 							</div>
 							{contextMenu.app.is_pinned && contextMenu.app.path !== "start" && (
 								<>
@@ -1219,7 +1219,7 @@ const Dock = memo(function Dock() {
 											}, 50);
 										}}
 									>
-										Change Icon...
+										Alterar ícone...
 									</div>
 									{(() => {
 										const isHost = isBrowserHost(contextMenu.app!.path);
@@ -1234,7 +1234,7 @@ const Dock = memo(function Dock() {
 													closeMenu();
 												}}
 											>
-												Reset Icon
+												Redefinir ícone
 											</div>
 										) : null;
 									})()}
@@ -1248,14 +1248,14 @@ const Dock = memo(function Dock() {
 									closeMenu();
 								}}
 							>
-								Add App to Dock...
+								Adicionar aplicativo ao dock...
 							</div>
 							<div
 								className="menu-item has-submenu"
 								onMouseEnter={() => setActiveSubmenu("willow")}
 								onMouseLeave={() => setActiveSubmenu(null)}
 							>
-								Willow Options
+								Opções do Willow
 								<span className="submenu-arrow">▶</span>
 								<div className="submenu">
 									<div
@@ -1265,7 +1265,7 @@ const Dock = memo(function Dock() {
 											closeMenu();
 										}}
 									>
-										Open Settings
+										Abrir configurações
 									</div>
 									<div className="menu-item" onClick={() => invoke("restart_willow")}>
 										Reiniciar Willow
@@ -1277,7 +1277,7 @@ const Dock = memo(function Dock() {
 											closeMenu();
 										}}
 									>
-										Clear Icon Cache
+										Limpar cache de ícones
 									</div>
 									<div className="menu-divider" />
 									<div className="menu-item quit" onClick={() => invoke("quit_willow")}>
@@ -1297,7 +1297,7 @@ const Dock = memo(function Dock() {
 											}
 										}}
 									>
-										Quit {contextMenu.app.name}
+										Fechar {contextMenu.app.name}
 									</div>
 								</>
 							)}
@@ -1311,14 +1311,14 @@ const Dock = memo(function Dock() {
 									closeMenu();
 								}}
 							>
-								Add App to Dock...
+								Adicionar aplicativo ao dock...
 							</div>
 							<div
 								className="menu-item has-submenu"
 								onMouseEnter={() => setActiveSubmenu("willow")}
 								onMouseLeave={() => setActiveSubmenu(null)}
 							>
-								Willow Options
+								Opções do Willow
 								<span className="submenu-arrow">▶</span>
 								<div className="submenu">
 									<div
@@ -1328,7 +1328,7 @@ const Dock = memo(function Dock() {
 											closeMenu();
 										}}
 									>
-										Open Settings
+										Abrir configurações
 									</div>
 									<div className="menu-item" onClick={() => invoke("restart_willow")}>
 										Reiniciar Willow
@@ -1340,7 +1340,7 @@ const Dock = memo(function Dock() {
 											closeMenu();
 										}}
 									>
-										Clear Icon Cache
+										Limpar cache de ícones
 									</div>
 									<div className="menu-divider" />
 									<div className="menu-item quit" onClick={() => invoke("quit_willow")}>
@@ -1555,7 +1555,7 @@ function AddAppPopup({
 						ref={inputRef}
 						type="text"
 						className="popup-search-input"
-						placeholder="Search apps..."
+						placeholder="Pesquisar aplicativos..."
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 					/>
@@ -1588,7 +1588,7 @@ function AddAppPopup({
 							);
 						})
 					) : (
-						<div className="popup-empty">No results</div>
+						<div className="popup-empty">Nenhum resultado</div>
 					)}
 				</div>
 			</motion.div>

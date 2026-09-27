@@ -370,6 +370,23 @@ interface MediaInfo {
 	position_updated_at?: number;
 }
 
+interface TrayAppInfo {
+	name: string;
+	path: string;
+	icon: string | null;
+	is_running: boolean;
+	hwnd?: number;
+}
+
+const BROWSER_TRAY_APPS: TrayAppInfo[] = [
+	{ name: "Assistente", path: "preview-assistant", icon: null, is_running: true },
+	{ name: "Terminal", path: "preview-terminal", icon: null, is_running: true },
+	{ name: "Segurança", path: "preview-security", icon: null, is_running: true },
+	{ name: "Música", path: "preview-music", icon: null, is_running: true },
+	{ name: "Nuvem", path: "preview-cloud", icon: null, is_running: true },
+	{ name: "Bluetooth", path: "preview-bluetooth", icon: null, is_running: true }
+];
+
 const MARQUEE_SPEED = 30; // px/s: constant for all titles
 const MARQUEE_MIN_DURATION = 5; // floor so short titles don't flicker
 
@@ -526,8 +543,21 @@ function App() {
 
 	const [windowLabel, setWindowLabel] = useState<string>("");
 	const [browserSettingsOpen, setBrowserSettingsOpen] = useState(false);
+	const [trayApps, setTrayApps] = useState<TrayAppInfo[]>(isTauriRuntime ? [] : BROWSER_TRAY_APPS);
+	const [trayAppsLoading, setTrayAppsLoading] = useState(false);
 	useEffect(() => {
 		setWindowLabel(isTauriRuntime ? getCurrentWebviewWindow().label : "preview");
+	}, []);
+
+	useEffect(() => {
+		if (isTauriRuntime) return;
+		const handlePreviewMessage = (event: MessageEvent) => {
+			if (event.origin === window.location.origin && event.data?.type === "willow-close-settings") {
+				setBrowserSettingsOpen(false);
+			}
+		};
+		window.addEventListener("message", handlePreviewMessage);
+		return () => window.removeEventListener("message", handlePreviewMessage);
 	}, []);
 
 	// Update state
@@ -999,18 +1029,27 @@ function App() {
 		invoke("change_notch_mode", { mode: notchMode });
 	}, [notchMode, windowLabel]);
 
-	type WillowMode = "music" | "calendar" | "command-center" | "status";
+	type WillowMode = "music" | "calendar" | "command-center" | "tray" | "status";
 	const [willowMode, setWillowMode] = useState<WillowMode>("status");
-	const [controlCenterPinned, setControlCenterPinned] = useState(false);
 	const toggleControlCenter = (event: React.MouseEvent) => {
 		event.stopPropagation();
-		if (controlCenterPinned) {
-			setControlCenterPinned(false);
-			setWillowMode("status");
-			return;
-		}
-		setControlCenterPinned(true);
+		setIsHovered(true);
 		setWillowMode("command-center");
+	};
+	const toggleTrayPanel = async (event: React.MouseEvent) => {
+		event.stopPropagation();
+		setIsHovered(true);
+		setWillowMode("tray");
+		if (!isTauriRuntime) return;
+		setTrayAppsLoading(true);
+		try {
+			const activeApps = await invoke<TrayAppInfo[]>("get_active_windows");
+			setTrayApps(activeApps.filter((app) => app.name && app.path).slice(0, 15));
+		} catch {
+			setTrayApps([]);
+		} finally {
+			setTrayAppsLoading(false);
+		}
 	};
 
 	// Window height is now kept constant to prevent rendering layout lag and sharp corners
@@ -1034,8 +1073,8 @@ function App() {
 		// Music shifts position based on playing state.
 		const musicBeforeStatus = isPlaying && mediaInfo.has_media && settingsMusicModeEnabled;
 		const modes: WillowMode[] = musicBeforeStatus
-			? ["command-center", "music", "status", "calendar"]
-			: ["command-center", "status", "music", "calendar"];
+			? ["command-center", "tray", "music", "status", "calendar"]
+			: ["command-center", "tray", "status", "music", "calendar"];
 		const availableModes = modes.filter((m) => {
 			if (m === "music" && (!settingsMusicModeEnabled || !mediaInfo.has_media)) return false;
 			if (m === "calendar" && !settingsCalendarEnabled) return false;
@@ -1164,12 +1203,12 @@ function App() {
 	const timerDisplaySeconds =
 		timerSeconds > 0 || isTimerFinished ? timerSeconds : lastDurationSeconds;
 	const primaryTimerLabel = isTimerRunning
-		? "Pause"
+		? "Pausar"
 		: timerSeconds > 0
-			? "Resume"
+			? "Continuar"
 			: isTimerFinished
-				? "Restart"
-				: "Start";
+				? "Reiniciar"
+				: "Iniciar";
 	const timerEndTime =
 		timerSeconds > 0 && !isTimerFinished
 			? new Date(Date.now() + timerSeconds * 1000).toLocaleTimeString([], {
@@ -1607,10 +1646,25 @@ function App() {
 	// Open system tray (unhide taskbar and invoke Win+B)
 	const openSystemTray = useCallback(async (e: React.MouseEvent) => {
 		e.stopPropagation();
+		if (!isTauriRuntime) return;
 		try {
 			await invoke("open_system_tray");
 		} catch (e) {
 			console.error("Failed to open system tray:", e);
+		}
+	}, []);
+
+	const openTrayApp = useCallback(async (event: React.MouseEvent, app: TrayAppInfo) => {
+		event.stopPropagation();
+		if (!isTauriRuntime) return;
+		try {
+			if (app.hwnd) {
+				await invoke("focus_window", { hwnd: app.hwnd });
+			} else {
+				await invoke("open_app", { appName: app.path });
+			}
+		} catch (error) {
+			console.error("Não foi possível abrir o aplicativo:", error);
 		}
 	}, []);
 
@@ -1680,6 +1734,7 @@ function App() {
 			return;
 		}
 		if (!settingsCalendarEnabled) return;
+		setIsHovered(true);
 
 		setWillowMode((prev) => {
 			if (prev === "calendar") {
@@ -1765,7 +1820,8 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
 		if (isCalendarMode) return 480;
-		if (willowMode === "command-center" && (isHovered || controlCenterPinned)) return 350;
+		if (willowMode === "command-center" && isHovered) return 350;
+		if (willowMode === "tray" && isHovered) return 350;
 		if (willowMode === "status" && isHovered) {
 			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
 			return Math.min(200 + totalWidgets * 50, 380);
@@ -1793,7 +1849,8 @@ function App() {
 		}
 		// Sized to the calendar's week-row count plus the timer's fixed content.
 		if (willowMode === "calendar") return calendarMonthRows >= 6 ? 305 : 273;
-		if (willowMode === "command-center") return isHovered || controlCenterPinned ? 230 : 36;
+		if (willowMode === "command-center") return isHovered ? 230 : 36;
+		if (willowMode === "tray") return isHovered ? 220 : 36;
 		if (willowMode === "status") return 36;
 		if (isMusicMode && isHovered) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
@@ -1823,17 +1880,13 @@ function App() {
 			{!isTauriRuntime && (
 				<>
 					<AiUsageIsland />
-					<BrowserDockPreview />
+					<BrowserDockPreview onOpenSettings={openSettingsWindow} />
 					{browserSettingsOpen && (
 						<div className="browser-settings-preview" onClick={() => setBrowserSettingsOpen(false)}>
-							<div className="browser-settings-frame-wrap" onClick={(event) => event.stopPropagation()}>
-								<button
-									className="browser-settings-close"
-									onClick={() => setBrowserSettingsOpen(false)}
-									title="Fechar configurações"
-								>
-									×
-								</button>
+							<div
+								className="browser-settings-frame-wrap"
+								onClick={(event) => event.stopPropagation()}
+							>
 								<iframe src="/settings.html" title="Configurações do Willow" />
 							</div>
 						</div>
@@ -1863,9 +1916,22 @@ function App() {
 			<div style={{ zoom: scale, width: "100%", display: "flex", justifyContent: "center" }}>
 				<motion.div
 					ref={willowRef}
-					className={`willow ${isHovered || controlCenterPinned ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""}`}
-					onMouseEnter={() => setIsNotchHovered(true)}
-					onMouseLeave={() => setIsNotchHovered(false)}
+					className={`willow ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""}`}
+					onMouseEnter={() => {
+						setIsNotchHovered(true);
+						setIsHovered(true);
+						if (!isHovered && willowMode === "status") {
+							setWillowMode(mediaInfo.has_media && isPlaying ? "music" : "status");
+						}
+					}}
+					onMouseLeave={() => {
+						setIsNotchHovered(false);
+						setIsHovered(false);
+						const targetMode =
+							mediaInfo.has_media && isPlaying && settingsMusicCompactNotch ? "music" : "status";
+						manualMusicRef.current = targetMode === "music";
+						setWillowMode(targetMode);
+					}}
 					onWheel={handleWheel}
 					initial={{
 						y: 250,
@@ -1901,27 +1967,6 @@ function App() {
 					}}
 					onClick={(e) => {
 						e.stopPropagation();
-					}}
-					onHoverStart={() => {
-						setIsHovered(true);
-						if (!controlCenterPinned) {
-							setWillowMode(mediaInfo.has_media && isPlaying ? "music" : "status");
-						}
-					}}
-					onHoverEnd={() => {
-						setIsHovered(false);
-						if (controlCenterPinned) return;
-						const targetMode =
-							mediaInfo.has_media && isPlaying && settingsMusicCompactNotch ? "music" : "status";
-						if (willowMode === "music") {
-							setWillowMode(targetMode);
-						} else if (
-							willowMode === "command-center" ||
-							willowMode === "calendar" ||
-							willowMode === "status"
-						) {
-							setWillowMode(targetMode);
-						}
 					}}
 					style={{ originY: 0 }}
 					transition={{
@@ -2272,7 +2317,7 @@ function App() {
 															>
 																{updateAvailable && <GreenDownArrowIcon />}
 																<BatteryIcon
-															charging={isCharging}
+																	charging={isCharging}
 																	level={batteryLevel}
 																	threshold={lowBatteryThreshold}
 																/>
@@ -2281,10 +2326,10 @@ function App() {
 																	style={{ color: showLowBatteryPulse ? "#FF453A" : "inherit" }}
 																>
 																	{showLowBatteryPulse
-														? "Bateria fraca"
-														: isCharging
+																		? "Bateria fraca"
+																		: isCharging
 																			? "Carregando"
-															: "Usando bateria"}{" "}
+																			: "Usando bateria"}{" "}
 																	• {batteryLevel}%
 																</span>
 															</motion.div>
@@ -2312,19 +2357,20 @@ function App() {
 																			</motion.div>
 																		)}
 																	</AnimatePresence>
-												) : !isMusicMode ? (
-													<div className="notch-side-tools">
-														<button
-													className={`notch-control-orb ${controlCenterPinned ? "active" : ""}`}
-													onClick={toggleControlCenter}
-															title="Abrir volume"
-														>
-															<VolumeLowIcon size={11} />
-														</button>
-														{willowMode === "status" && isHovered &&
-															statusWidgets.left.map(renderStatusWidget)}
-													</div>
-												) : null}
+																) : !isMusicMode ? (
+																	<div className="notch-side-tools">
+																		<button
+																			className={`notch-control-orb ${willowMode === "command-center" ? "active" : ""}`}
+																			onClick={toggleControlCenter}
+																			title="Abrir controles de som e brilho"
+																		>
+																			<VolumeLowIcon size={11} />
+																		</button>
+																		{willowMode === "status" &&
+																			isHovered &&
+																			statusWidgets.left.map(renderStatusWidget)}
+																	</div>
+																) : null}
 															</div>
 
 															{/* Center - Time (always visible) */}
@@ -2444,19 +2490,20 @@ function App() {
 																			</button>
 																		</motion.div>
 																	</AnimatePresence>
-												) : !isMusicMode ? (
-													<div className="notch-side-tools">
-														{willowMode === "status" && isHovered &&
-															statusWidgets.right.map(renderStatusWidget)}
-														<button
-													className={`notch-control-orb ${controlCenterPinned ? "active" : ""}`}
-													onClick={toggleControlCenter}
-															title="Abrir brilho"
-														>
-															<BrightnessLowIcon />
-														</button>
-													</div>
-												) : null}
+																) : !isMusicMode ? (
+																	<div className="notch-side-tools">
+																		{willowMode === "status" &&
+																			isHovered &&
+																			statusWidgets.right.map(renderStatusWidget)}
+																		<button
+																			className={`notch-control-orb ${willowMode === "tray" ? "active" : ""}`}
+																			onClick={toggleTrayPanel}
+																			title="Abrir aplicativos ocultos"
+																		>
+																			<TrayIcon />
+																		</button>
+																	</div>
+																) : null}
 															</div>
 														</motion.div>
 													)}
@@ -2487,7 +2534,7 @@ function App() {
 														toggleWifi();
 													}}
 													onContextMenu={handleWifiRightClick}
-												title="Clique para alternar. Use o botão direito para abrir as configurações"
+													title="Clique para alternar. Use o botão direito para abrir as configurações"
 												>
 													<div className="cc-pill-icon-wrapper">
 														<WifiIcon connected={wifiEnabled} />
@@ -2495,7 +2542,7 @@ function App() {
 													<div className="cc-pill-info">
 														<span className="cc-pill-title">Wi-Fi</span>
 														<span className="cc-pill-status">
-													{wifiEnabled ? "Conectado" : "Desligado"}
+															{wifiEnabled ? "Conectado" : "Desligado"}
 														</span>
 													</div>
 												</div>
@@ -2504,7 +2551,7 @@ function App() {
 												<div
 													className={`cc-pill-tile ${dockMode === "fixed" ? "active" : ""}`}
 													onClick={toggleDockModeSetting}
-												title="Alternar modo do dock: Fixo, Inteligente ou Espiar"
+													title="Alternar modo do dock: Fixo, Inteligente ou Espiar"
 												>
 													<div className="cc-pill-icon-wrapper">
 														<DockIcon />
@@ -2513,10 +2560,10 @@ function App() {
 														<span className="cc-pill-title">Modo do dock</span>
 														<span className="cc-pill-status">
 															{dockMode === "fixed"
-														? "Fixo"
+																? "Fixo"
 																: dockMode === "smart"
-															? "Inteligente"
-															: "Espiar"}
+																	? "Inteligente"
+																	: "Espiar"}
 														</span>
 													</div>
 												</div>
@@ -2529,7 +2576,7 @@ function App() {
 														toggleBluetooth();
 													}}
 													onContextMenu={handleBluetoothRightClick}
-												title="Clique para alternar. Use o botão direito para abrir as configurações"
+													title="Clique para alternar. Use o botão direito para abrir as configurações"
 												>
 													<div className="cc-pill-icon-wrapper">
 														<BluetoothIcon />
@@ -2537,7 +2584,7 @@ function App() {
 													<div className="cc-pill-info">
 														<span className="cc-pill-title">Bluetooth</span>
 														<span className="cc-pill-status">
-													{bluetoothEnabled ? "Ligado" : "Desligado"}
+															{bluetoothEnabled ? "Ligado" : "Desligado"}
 														</span>
 													</div>
 												</div>
@@ -2546,19 +2593,19 @@ function App() {
 												<div
 													className={`cc-pill-tile ${notchMode === "fixed" ? "active" : ""}`}
 													onClick={toggleNotchModeSetting}
-												title="Alternar modo da ilha: Fixo, Inteligente ou Espiar"
+													title="Alternar modo da ilha: Fixo, Inteligente ou Espiar"
 												>
 													<div className="cc-pill-icon-wrapper">
 														<NotchIcon />
 													</div>
 													<div className="cc-pill-info">
-												<span className="cc-pill-title">Modo da ilha</span>
+														<span className="cc-pill-title">Modo da ilha</span>
 														<span className="cc-pill-status">
 															{notchMode === "fixed"
-														? "Fixo"
+																? "Fixo"
 																: notchMode === "smart"
-															? "Inteligente"
-															: "Espiar"}
+																	? "Inteligente"
+																	: "Espiar"}
 														</span>
 													</div>
 												</div>
@@ -2572,7 +2619,7 @@ function App() {
 														e.stopPropagation();
 														setDndActive((prev) => !prev);
 													}}
-											title={`Foco e não perturbe: ${dndActive ? "Ligado" : "Desligado"}`}
+													title={`Foco e não perturbe: ${dndActive ? "Ligado" : "Desligado"}`}
 												>
 													<MoonIcon />
 												</button>
@@ -2582,7 +2629,7 @@ function App() {
 														e.stopPropagation();
 														openBatterySaverSettings();
 													}}
-											title={`Economia de energia: ${batterySaverEnabled ? "Ligada" : "Desligada"}. Clique para abrir as configurações`}
+													title={`Economia de energia: ${batterySaverEnabled ? "Ligada" : "Desligada"}. Clique para abrir as configurações`}
 												>
 													<BatterySaverIcon />
 												</button>
@@ -2592,7 +2639,7 @@ function App() {
 														e.stopPropagation();
 														openSystemTray(e);
 													}}
-											title="Bandeja do sistema"
+													title="Bandeja do sistema"
 												>
 													<TrayIcon />
 												</button>
@@ -2612,7 +2659,7 @@ function App() {
 														e.stopPropagation();
 														openSettingsWindow();
 													}}
-											title="Configurações do Willow"
+													title="Configurações do Willow"
 												>
 													<SettingsIcon />
 												</button>
@@ -2686,6 +2733,57 @@ function App() {
 									)}
 								</AnimatePresence>
 
+								{/* Aplicativos ativos */}
+								<AnimatePresence>
+									{willowMode === "tray" && (
+										<motion.div
+											className="tray-apps-content"
+											onClick={(event) => event.stopPropagation()}
+											initial={{ opacity: 0, y: -5, scale: 0.98 }}
+											animate={{ opacity: 1, y: 0, scale: 1 }}
+											exit={{ opacity: 0, y: -4, filter: "blur(4px)" }}
+											transition={{ type: "spring", stiffness: 420, damping: 32 }}
+										>
+											<div className="tray-apps-head">
+												<div>
+													<strong>Aplicativos</strong>
+													<span>
+														{isTauriRuntime ? "Ativos neste computador" : "Prévia do navegador"}
+													</span>
+												</div>
+												{isTauriRuntime && (
+													<button onClick={openSystemTray}>Ver bandeja completa</button>
+												)}
+											</div>
+
+											<div className="tray-apps-grid">
+												{trayAppsLoading ? (
+													<div className="tray-apps-message">Carregando aplicativos...</div>
+												) : trayApps.length ? (
+													trayApps.map((app) => (
+														<button
+															key={`${app.path}-${app.hwnd || app.name}`}
+															aria-label={app.name}
+															onClick={(event) => openTrayApp(event, app)}
+														>
+															{app.icon ? (
+																<img src={app.icon} alt="" />
+															) : (
+																<span>{app.name.slice(0, 1).toUpperCase()}</span>
+															)}
+															<i>{app.name}</i>
+														</button>
+													))
+												) : (
+													<div className="tray-apps-message">
+														Nenhum aplicativo ativo encontrado.
+													</div>
+												)}
+											</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
 								{/* Calendário e temporizador Split View */}
 								<AnimatePresence>
 									{settingsCalendarEnabled && isCalendarMode && (
@@ -2708,19 +2806,21 @@ function App() {
 													<div className="timer-main">
 														<div className="timer-status">
 															{isEditingTimer
-																? "Set duration"
+																? "Defina a duração"
 																: isTimerFinished
-																	? "Time's up"
+																	? "Tempo encerrado"
 																	: timerEndTime
-																		? `${timerState === "paused" ? "Paused · " : ""}termina ${timerEndTime}`
-																		: "Click to edit"}
+																		? `${timerState === "paused" ? "Pausado · " : ""}termina ${timerEndTime}`
+																		: "Clique para editar"}
 														</div>
 
 														<div className={`timer-clock-row ${isEditingTimer ? "editing" : ""}`}>
 															<div
 																className={`timer-clock ${isEditingTimer && !timerEditValid ? "invalid" : ""}`}
 																onClick={beginTimerEdit}
-																title={isTimerRunning ? undefined : "Click to set a duration"}
+																title={
+																	isTimerRunning ? undefined : "Clique para definir uma duração"
+																}
 															>
 																{minuteDigitItems.map(({ digit, key }) => (
 																	<RollDigit key={key} value={digit} compact={clockCompact} />
@@ -2773,7 +2873,7 @@ function App() {
 															onClick={resetTimer}
 															className="timer-btn-reset"
 															disabled={timerSeconds === 0 && !isTimerFinished}
-															title="Reset"
+															title="Redefinir"
 														>
 															<RotateCcw size={14} strokeWidth={2.5} />
 														</button>

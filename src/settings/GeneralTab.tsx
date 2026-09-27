@@ -40,7 +40,7 @@ export function GeneralTab({
 				<SettingRow
 					icon={Download}
 					label="Indicador de atualização"
-					desc="Mostra um ponto verde quando houver atualização"
+					desc="Mostra um ponto na cor do tema quando houver atualização"
 				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={showUpdateIndicator} onChange={toggleUpdateIndicator} />

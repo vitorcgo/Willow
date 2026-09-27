@@ -10,6 +10,7 @@ import type { WidgetConfig } from "./types";
 
 function saveSetting(key: string, value: string) {
 	localStorage.setItem(key, value);
+	window.dispatchEvent(new CustomEvent("willow-setting-changed", { detail: { key, value } }));
 	invoke("save_setting", { key, value }).catch(console.error);
 }
 
@@ -191,8 +192,8 @@ export function useSettings() {
 			.catch(() => {});
 
 		getVersion()
-			.then((ver) => setAppVersion(ver || "3.1.2"))
-			.catch(() => setAppVersion("3.1.2"));
+			.then((ver) => setAppVersion(ver || "0.1.0"))
+			.catch(() => setAppVersion("0.1.0"));
 
 		checkForUpdates(false);
 	}, []);
@@ -263,7 +264,7 @@ export function useSettings() {
 		const timeout = setTimeout(async () => {
 			try {
 				const res = await fetch(
-					`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=5&language=en&format=json`
+					`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=5&language=pt&format=json`
 				);
 				const data = await res.json();
 				if (data.results && data.results.length > 0) {

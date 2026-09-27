@@ -7,10 +7,10 @@
 	align-items: center;
 	gap: 7px;
 	padding: 8px 12px 7px;
-	border: 1px solid rgba(255, 255, 255, 0.1);
+	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.1));
 	border-bottom: 0;
 	border-radius: 18px 18px 0 0;
-	background: rgba(8, 10, 13, 0.78);
+	background: var(--willow-bg, rgba(8, 10, 13, 0.78));
 	box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.28);
 	backdrop-filter: blur(22px) saturate(1.3);
 	-webkit-backdrop-filter: blur(22px) saturate(1.3);
@@ -26,15 +26,32 @@
 	border-radius: 11px;
 	display: grid;
 	place-items: center;
-	background: rgba(255, 255, 255, 0.075);
-	color: rgba(255, 255, 255, 0.9);
+	background: var(--willow-group-bg, rgba(255, 255, 255, 0.075));
+	color: var(--willow-text, rgba(255, 255, 255, 0.9));
 	cursor: default;
-	transition: transform 150ms ease, background 150ms ease;
+	transition:
+		transform 150ms ease,
+		background 150ms ease;
 }
 
 .browser-dock button:hover {
 	transform: translateY(-5px) scale(1.06);
-	background: rgba(255, 255, 255, 0.13);
+	background: var(--willow-border, rgba(255, 255, 255, 0.13));
+}
+
+.browser-dock .browser-dock-willow {
+	cursor: pointer;
+	background: var(--willow-accent-soft, rgba(77, 140, 210, 0.18));
+	box-shadow:
+		0 0 0 1px var(--willow-accent-muted, rgba(119, 183, 255, 0.12)),
+		0 6px 18px var(--willow-accent-glow, rgba(18, 83, 160, 0.22));
+}
+
+.browser-dock-willow img {
+	width: 45px;
+	height: 45px;
+	object-fit: contain;
+	pointer-events: none;
 }
 
 .browser-dock button i {
@@ -45,7 +62,7 @@
 	height: 4px;
 	transform: translateX(-50%);
 	border-radius: 50%;
-	background: #fff;
+	background: var(--willow-accent, #fff);
 }
 
 .browser-settings-preview {
@@ -57,6 +74,7 @@
 	background: rgba(0, 0, 0, 0.52);
 	backdrop-filter: blur(10px);
 	-webkit-backdrop-filter: blur(10px);
+	animation: browser-settings-backdrop-in 180ms ease-out;
 }
 
 .browser-settings-frame-wrap {
@@ -65,9 +83,11 @@
 	height: min(480px, calc(100vh - 32px));
 	border: 1px solid rgba(255, 255, 255, 0.16);
 	border-radius: 18px;
-	background: #0b0d10;
+	background: var(--willow-bg-expanded, #0b0d10);
 	box-shadow: 0 30px 90px rgba(0, 0, 0, 0.58);
 	overflow: hidden;
+	transform-origin: center;
+	animation: browser-settings-panel-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .browser-settings-frame-wrap iframe {
@@ -77,16 +97,24 @@
 	background: transparent;
 }
 
-.browser-settings-close {
-	position: absolute;
-	right: 8px;
-	top: 7px;
-	z-index: 2;
-	width: 25px;
-	height: 25px;
-	border: 1px solid rgba(255, 255, 255, 0.11);
-	border-radius: 50%;
-	background: #20242a;
-	color: #fff;
-	cursor: pointer;
+@keyframes browser-settings-backdrop-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes browser-settings-panel-in {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.94);
+		filter: blur(5px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+		filter: blur(0);
+	}
 }

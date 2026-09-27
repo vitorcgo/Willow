@@ -17,34 +17,34 @@ import {
 // WMO weather interpretation codes
 // https://open-meteo.com/en/docs#weathervariables
 const WMO_CODES: Record<number, string> = {
-	0: "Clear",
-	1: "Mostly Clear",
-	2: "Partly Cloudy",
-	3: "Overcast",
-	45: "Foggy",
-	48: "Foggy",
-	51: "Drizzle",
-	53: "Drizzle",
-	55: "Drizzle",
-	56: "Freezing Drizzle",
-	57: "Freezing Drizzle",
-	61: "Rainy",
-	63: "Rainy",
-	65: "Rainy",
-	66: "Freezing Rain",
-	67: "Freezing Rain",
-	71: "Snowy",
-	73: "Snowy",
-	75: "Snowy",
-	77: "Snowy",
-	80: "Rain Showers",
-	81: "Rain Showers",
-	82: "Rain Showers",
-	85: "Snow Showers",
-	86: "Snow Showers",
-	95: "Stormy",
-	96: "Stormy",
-	99: "Stormy"
+	0: "Céu limpo",
+	1: "Predominantemente limpo",
+	2: "Parcialmente nublado",
+	3: "Nublado",
+	45: "Neblina",
+	48: "Neblina",
+	51: "Garoa",
+	53: "Garoa",
+	55: "Garoa",
+	56: "Garoa congelante",
+	57: "Garoa congelante",
+	61: "Chuva",
+	63: "Chuva",
+	65: "Chuva",
+	66: "Chuva congelante",
+	67: "Chuva congelante",
+	71: "Neve",
+	73: "Neve",
+	75: "Neve",
+	77: "Neve",
+	80: "Pancadas de chuva",
+	81: "Pancadas de chuva",
+	82: "Pancadas de chuva",
+	85: "Pancadas de neve",
+	86: "Pancadas de neve",
+	95: "Tempestade",
+	96: "Tempestade",
+	99: "Tempestade"
 };
 
 const DELHI_LAT = 28.6139;
@@ -65,25 +65,25 @@ interface ResolvedLocation {
 
 function getWeatherIcon(condition: string, isDay = true): ComponentType<LucideProps> {
 	switch (condition) {
-		case "Clear":
-		case "Mostly Clear":
+		case "Céu limpo":
+		case "Predominantemente limpo":
 			return isDay ? Sun : Moon;
-		case "Partly Cloudy":
-		case "Overcast":
+		case "Parcialmente nublado":
+		case "Nublado":
 			return Cloud;
-		case "Foggy":
+		case "Neblina":
 			return CloudFog;
-		case "Drizzle":
-		case "Freezing Drizzle":
+		case "Garoa":
+		case "Garoa congelante":
 			return CloudDrizzle;
-		case "Rainy":
-		case "Rain Showers":
-		case "Freezing Rain":
+		case "Chuva":
+		case "Pancadas de chuva":
+		case "Chuva congelante":
 			return CloudRain;
-		case "Snowy":
-		case "Snow Showers":
+		case "Neve":
+		case "Pancadas de neve":
 			return CloudSnow;
-		case "Stormy":
+		case "Tempestade":
 			return CloudLightning;
 		default:
 			return Thermometer;
@@ -112,7 +112,7 @@ async function fetchWeatherForCoords(
 
 	const temp = Math.round(data.current.temperature_2m);
 	const code = data.current.weather_code;
-	const condition = WMO_CODES[code] || "Unknown";
+	const condition = WMO_CODES[code] || "Condição desconhecida";
 	const isDay = data.current.is_day === 1;
 
 	return {

@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
-
 html,
 body {
 	margin: 0;
@@ -97,7 +95,7 @@ img {
 .power-pulse-content .label {
 	font-size: 13px;
 	font-weight: 600;
-	color: white;
+	color: var(--willow-text, white);
 }
 
 .bottom-row {
@@ -129,7 +127,7 @@ img {
 	justify-content: center;
 	gap: 6px;
 	font-size: 11px;
-	color: rgba(255, 255, 255, 0.9);
+	color: var(--willow-text, rgba(255, 255, 255, 0.9));
 	font-weight: 500;
 	white-space: nowrap;
 	width: max-content;
@@ -230,15 +228,18 @@ img {
 	display: grid;
 	place-items: center;
 	cursor: pointer;
-	transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
+	transition:
+		transform 0.16s ease,
+		background 0.16s ease,
+		color 0.16s ease;
 }
 
 .notch-control-orb:hover,
 .notch-control-orb.active {
 	transform: scale(1.08);
-	background: rgba(0, 0, 0, 0.68);
-	border-color: rgba(255, 255, 255, 0.22);
-	color: #fff;
+	background: var(--willow-accent-soft, rgba(0, 0, 0, 0.68));
+	border-color: var(--willow-accent-muted, rgba(255, 255, 255, 0.22));
+	color: var(--willow-text, #fff);
 }
 
 .notch-control-orb svg {
@@ -406,7 +407,8 @@ img {
 	width: 5px;
 	height: 5px;
 	border-radius: 50%;
-	background: #32d74b;
+	background: var(--willow-accent, #32d74b);
+	box-shadow: 0 0 8px var(--willow-accent-glow, rgba(50, 215, 75, 0.45));
 	pointer-events: none;
 }
 
@@ -526,7 +528,7 @@ img {
 	align-items: center;
 	justify-content: center;
 	background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
-	color: rgba(255, 255, 255, 0.85);
+	color: var(--willow-text, rgba(255, 255, 255, 0.85));
 }
 
 .music-placeholder-svg-small {
@@ -542,7 +544,7 @@ img {
 	align-items: center;
 	justify-content: center;
 	background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
-	color: rgba(255, 255, 255, 0.65);
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.65));
 	transition:
 		background 0.25s ease,
 		color 0.25s ease;
@@ -550,7 +552,7 @@ img {
 
 .premium-album-art:hover .art-placeholder-mini {
 	background: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
-	color: rgba(255, 255, 255, 0.9);
+	color: var(--willow-text, rgba(255, 255, 255, 0.9));
 }
 
 .music-placeholder-svg {
@@ -1406,6 +1408,122 @@ img {
 	overflow: hidden;
 }
 
+.tray-apps-content {
+	position: absolute;
+	top: 36px;
+	left: 0;
+	width: 100%;
+	height: calc(100% - 36px);
+	box-sizing: border-box;
+	z-index: 2;
+	padding: 11px 14px 13px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	color: var(--willow-text, #fff);
+	border-radius: 0 0 18px 18px;
+	overflow: hidden;
+}
+
+.tray-apps-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.tray-apps-head > div {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.tray-apps-head strong {
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.tray-apps-head span {
+	font-size: 8px;
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.48));
+}
+
+.tray-apps-head > button {
+	padding: 5px 8px;
+	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.08));
+	border-radius: 8px;
+	background: var(--willow-group-bg, rgba(255, 255, 255, 0.05));
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.7));
+	font: inherit;
+	font-size: 8px;
+	cursor: pointer;
+}
+
+.tray-apps-grid {
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	gap: 8px 10px;
+	width: 100%;
+	align-content: start;
+}
+
+.tray-apps-grid > button {
+	position: relative;
+	width: 48px;
+	height: 48px;
+	justify-self: center;
+	padding: 0;
+	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.035));
+	border-radius: 12px;
+	display: grid;
+	place-items: center;
+	background: var(--willow-group-bg, rgba(255, 255, 255, 0.05));
+	color: var(--willow-text, #fff);
+	cursor: pointer;
+	transition:
+		transform 150ms ease,
+		background 150ms ease;
+}
+
+.tray-apps-grid > button:hover {
+	transform: translateY(-2px) scale(1.04);
+	background: var(--willow-border, rgba(255, 255, 255, 0.1));
+}
+
+.tray-apps-grid img {
+	width: 28px;
+	height: 28px;
+	object-fit: contain;
+}
+
+.tray-apps-grid > button > span {
+	font-size: 14px;
+	font-weight: 750;
+	color: var(--willow-text, #fff);
+}
+
+.tray-apps-grid > button > i {
+	position: absolute;
+	left: 50%;
+	bottom: 2px;
+	width: calc(100% - 6px);
+	transform: translateX(-50%);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-style: normal;
+	font-size: 6px;
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.5));
+}
+
+.tray-apps-message {
+	grid-column: 1 / -1;
+	padding: 34px 10px;
+	text-align: center;
+	font-size: 9px;
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.5));
+}
+
 /* Pills Grid */
 .cc-pills-grid {
 	display: grid;
@@ -1476,8 +1594,8 @@ img {
 
 /* Active Monochrome pill states */
 .cc-pill-tile.active {
-	background: rgba(255, 255, 255, 0.09);
-	border-color: rgba(255, 255, 255, 0.14);
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.09));
+	border-color: var(--willow-accent-muted, rgba(255, 255, 255, 0.14));
 }
 
 .cc-pill-tile.active .cc-pill-title {
@@ -1527,14 +1645,14 @@ img {
 }
 
 .cc-circular-btn.active {
-	background: var(--willow-text, #ffffff);
-	border-color: var(--willow-text, #ffffff);
-	color: var(--willow-bg-expanded, #000000);
-	box-shadow: 0 2px 8px var(--willow-border, rgba(255, 255, 255, 0.1));
+	background: var(--willow-accent, #ffffff);
+	border-color: var(--willow-accent, #ffffff);
+	color: var(--willow-accent-contrast, #000000);
+	box-shadow: 0 2px 8px var(--willow-accent-glow, rgba(255, 255, 255, 0.1));
 }
 
 .cc-circular-btn.active:hover {
-	background: rgba(255, 255, 255, 0.9);
+	filter: brightness(1.08);
 }
 
 /* Classic Sliders Area */
@@ -1722,7 +1840,7 @@ img {
 	align-items: center;
 	justify-content: center;
 	background: rgba(255, 255, 255, 0.08);
-	color: rgba(255, 255, 255, 0.4);
+	color: var(--willow-text-muted, rgba(255, 255, 255, 0.4));
 }
 
 /* Track info */

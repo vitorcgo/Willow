@@ -39,6 +39,21 @@ body {
 	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.12));
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 	cursor: default; /* Reset cursor for whole container */
+	transform-origin: center;
+	animation: settings-window-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes settings-window-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.95);
+		filter: blur(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+		filter: blur(0);
+	}
 }
 
 .title-bar {
@@ -141,14 +156,14 @@ body {
 }
 
 .sidebar-tab.active {
-	background: rgba(255, 255, 255, 0.08);
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.08));
 	color: var(--text-color);
 	font-weight: 600;
 	opacity: 1;
 }
 
 .light-mode .sidebar-tab.active {
-	background: rgba(0, 0, 0, 0.06);
+	background: var(--willow-accent-soft, rgba(0, 0, 0, 0.06));
 }
 
 .light-mode .sidebar-tab-icon {
@@ -185,7 +200,7 @@ body {
 }
 
 .sidebar-tab.active .sidebar-tab-icon {
-	color: var(--text-color, white);
+	color: var(--willow-accent, var(--text-color, white));
 }
 
 .sidebar-tab:hover .sidebar-tab-icon {
@@ -193,8 +208,8 @@ body {
 }
 
 .sidebar-tab.active svg {
-	stroke: var(--text-color);
-	color: var(--text-color);
+	stroke: var(--willow-accent, var(--text-color));
+	color: var(--willow-accent, var(--text-color));
 }
 
 .sidebar-tab:hover svg {
@@ -339,7 +354,7 @@ body {
 	right: 0;
 	bottom: 0;
 	background-color: var(--willow-group-bg, rgba(255, 255, 255, 0.15));
-	transition: .3scubic-bezier(0.4, 0.0, 0.2, 1);
+	transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	border-radius: 24px;
 	border: 1px solid var(--willow-border, rgba(255, 255, 255, 0.05));
 }
@@ -358,8 +373,8 @@ body {
 }
 
 input:checked + .slider {
-	background-color: #34c759;
-	border-color: #34c759;
+	background-color: var(--willow-accent, #34c759);
+	border-color: var(--willow-accent, #34c759);
 }
 
 input:checked + .slider:before {
@@ -396,8 +411,8 @@ input:checked + .slider:before {
 }
 
 .unit-toggle-minimal span.active {
-	background: var(--willow-border, rgba(255, 255, 255, 0.15));
-	color: var(--willow-text, white);
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.15));
+	color: var(--willow-accent, var(--willow-text, white));
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -582,7 +597,7 @@ input:checked + .slider:before {
 	appearance: none;
 	width: 14px;
 	height: 14px;
-	background: var(--willow-text, white);
+	background: var(--willow-accent, white);
 	border-radius: 50%;
 	cursor: pointer;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -689,10 +704,6 @@ input:checked + .slider:before {
 	transition: filter 0.2s ease;
 }
 
-.light-mode .about-logo {
-	filter: invert(1);
-}
-
 .about-title {
 	font-size: 24px;
 	font-weight: 700;
@@ -753,8 +764,8 @@ input:checked + .slider:before {
 }
 
 .widget-config-zone--over {
-	border-color: rgba(96, 165, 250, 0.4);
-	background: rgba(96, 165, 250, 0.06);
+	border-color: var(--willow-accent-muted, rgba(96, 165, 250, 0.4));
+	background: var(--willow-accent-soft, rgba(96, 165, 250, 0.06));
 }
 
 .widget-config-side {
@@ -848,8 +859,8 @@ input:checked + .slider:before {
 
 .widget-pill--dragging {
 	opacity: 0.5;
-	background: rgba(96, 165, 250, 0.15);
-	border: 1px solid rgba(96, 165, 250, 0.3);
+	background: var(--willow-accent-soft, rgba(96, 165, 250, 0.15));
+	border: 1px solid var(--willow-accent-muted, rgba(96, 165, 250, 0.3));
 }
 
 .widget-pill-btns {
@@ -895,6 +906,6 @@ input:checked + .slider:before {
 }
 
 .provider-state--ok {
-	background: rgba(61, 213, 134, 0.13);
-	color: #70dea6;
+	background: var(--willow-accent-soft, rgba(61, 213, 134, 0.13));
+	color: var(--willow-accent, #70dea6);
 }
