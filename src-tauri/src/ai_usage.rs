@@ -860,10 +860,11 @@ pub async fn get_ai_usage() -> Vec<ProviderUsage> {
             read_cursor(),
             read_grok(),
             read_opencode(),
-        ] {
-            if let Some(provider) = provider {
-                providers.push(provider);
-            }
+        ]
+        .into_iter()
+        .flatten()
+        {
+            providers.push(provider);
         }
 
         if let Some(home) = home_dir() {

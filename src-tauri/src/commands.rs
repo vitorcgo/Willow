@@ -3051,7 +3051,7 @@ pub fn import_settings(app: AppHandle, settings: String) -> Result<(), String> {
         );
     }
 
-    if imported.get("willow-scale").is_some() {
+    if imported.contains_key("willow-scale") {
         re_register_appbars(&app, &imported);
     }
 

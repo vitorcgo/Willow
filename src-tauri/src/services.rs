@@ -1765,10 +1765,10 @@ fn set_physical_monitors_brightness(brightness: u32) -> bool {
                 if GetPhysicalMonitorsFromHMONITOR(hmonitor, count, monitors.as_mut_ptr()).as_bool()
                 {
                     for mon in &monitors {
-                        if mon.h_physical_monitor != 0 {
-                            if SetMonitorBrightness(mon.h_physical_monitor, brightness).as_bool() {
-                                context.applied = true;
-                            }
+                        if mon.h_physical_monitor != 0
+                            && SetMonitorBrightness(mon.h_physical_monitor, brightness).as_bool()
+                        {
+                            context.applied = true;
                         }
                     }
                     let _ = DestroyPhysicalMonitors(count, monitors.as_mut_ptr());
@@ -1804,7 +1804,7 @@ pub fn setup_brightness_worker() {
             IWbemClassObject, IWbemLocator, WbemLocator, WBEM_GENERIC_FLAG_TYPE,
         };
 
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let com_initialized = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
 
         let ns = windows::core::BSTR::from("root\\WMI");
         let empty_bstr = windows::core::BSTR::new();
@@ -1906,7 +1906,9 @@ pub fn setup_brightness_worker() {
             // 2. Desktop external monitor via Physical Monitor API (DXVA2 DDC/CI)
             let _ = set_physical_monitors_brightness(brightness);
         }
-        let _ = CoUninitialize();
+        if com_initialized {
+            CoUninitialize();
+        }
     });
 }
 
@@ -2513,40 +2515,45 @@ unsafe extern "system" fn mouse_hook_proc(
                     }
                 } else {
                     let over_left = if cached_setting_is_true("willow-volume-edge-enabled", false) {
-                      if let Ok(Some(m)) = ov_win.primary_monitor() {
-                        let ms = m.size();
-                        let mp = m.position();
-                        let sc = m.scale_factor();
-                        let nw = (42.0 * sc) as i32;
-                        let nh = (196.0 * sc) as i32;
-                        let nx = mp.x;
-                        let ny = mp.y + (ms.height as i32 / 2) - (nh / 2);
-                        cursor.x >= nx
-                            && cursor.x <= nx + nw
-                            && cursor.y >= ny
-                            && cursor.y <= ny + nh
+                        if let Ok(Some(m)) = ov_win.primary_monitor() {
+                            let ms = m.size();
+                            let mp = m.position();
+                            let sc = m.scale_factor();
+                            let nw = (42.0 * sc) as i32;
+                            let nh = (196.0 * sc) as i32;
+                            let nx = mp.x;
+                            let ny = mp.y + (ms.height as i32 / 2) - (nh / 2);
+                            cursor.x >= nx
+                                && cursor.x <= nx + nw
+                                && cursor.y >= ny
+                                && cursor.y <= ny + nh
+                        } else {
+                            false
+                        }
                     } else {
                         false
-                      }
-                    } else { false };
+                    };
 
-                    let over_right = if cached_setting_is_true("willow-brightness-edge-enabled", false) {
-                      if let Ok(Some(m)) = ov_win.primary_monitor() {
-                        let ms = m.size();
-                        let mp = m.position();
-                        let sc = m.scale_factor();
-                        let nw = (42.0 * sc) as i32;
-                        let nh = (196.0 * sc) as i32;
-                        let nx = mp.x + ms.width as i32 - nw;
-                        let ny = mp.y + (ms.height as i32 / 2) - (nh / 2);
-                        cursor.x >= nx
-                            && cursor.x <= nx + nw
-                            && cursor.y >= ny
-                            && cursor.y <= ny + nh
-                    } else {
-                        false
-                      }
-                    } else { false };
+                    let over_right =
+                        if cached_setting_is_true("willow-brightness-edge-enabled", false) {
+                            if let Ok(Some(m)) = ov_win.primary_monitor() {
+                                let ms = m.size();
+                                let mp = m.position();
+                                let sc = m.scale_factor();
+                                let nw = (42.0 * sc) as i32;
+                                let nh = (196.0 * sc) as i32;
+                                let nx = mp.x + ms.width as i32 - nw;
+                                let ny = mp.y + (ms.height as i32 / 2) - (nh / 2);
+                                cursor.x >= nx
+                                    && cursor.x <= nx + nw
+                                    && cursor.y >= ny
+                                    && cursor.y <= ny + nh
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
 
                     let should_ignore = !(over_left || over_right);
                     let prev = MH_LAST_OV_IGNORE.load(Ordering::Relaxed);

@@ -1,6 +1,6 @@
 [package]
 name = "willow"
-version = "0.1.0"
+version = "0.1.1"
 description = "Ilha dinâmica e dock para Windows com monitoramento local de uso de IA"
 authors = ["Willow Contributors"]
 edition = "2021"
