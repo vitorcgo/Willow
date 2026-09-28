@@ -8,6 +8,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./Overlay.css";
 import { initTheme } from "./theme";
+import { WillowDuckMark } from "./components/WillowMarks";
 
 // ─── Volume Notch ───────────────────────────────────────────────────────────
 
@@ -257,9 +258,7 @@ function OverlayApp() {
 				setBrightnessOverlayEnabled(
 					readBool("willow-brightness-overlay-enabled", brightnessOverlayEnabled)
 				);
-				setBrightnessEdgeEnabled(
-					readBool("willow-brightness-edge-enabled", brightnessEdgeEnabled)
-				);
+				setBrightnessEdgeEnabled(readBool("willow-brightness-edge-enabled", brightnessEdgeEnabled));
 				setVolumeOverlayEnabled(readBool("willow-volume-overlay-enabled", volumeOverlayEnabled));
 				setVolumeEdgeEnabled(readBool("willow-volume-edge-enabled", volumeEdgeEnabled));
 			})
@@ -510,10 +509,8 @@ function OverlayApp() {
 						exit={{ opacity: 0 }}
 						transition={{ duration: 0.3 }}
 					>
-						<motion.img
-							src="/willow.png"
+						<motion.div
 							className="splash-logo"
-							draggable={false}
 							initial={{ scale: 0, opacity: 0, rotate: 0 }}
 							animate={{
 								scale: [0, 1.1, 1, 1.2, 1, 1, 0.2],
@@ -526,7 +523,9 @@ function OverlayApp() {
 								ease: ["easeOut", "easeInOut", "easeInOut", "easeInOut", "linear", "linear"]
 							}}
 							onAnimationComplete={onSplashComplete}
-						/>
+						>
+							<WillowDuckMark />
+						</motion.div>
 					</motion.div>
 				)}
 			</AnimatePresence>
@@ -541,7 +540,7 @@ function OverlayApp() {
 						exit={{ opacity: 0 }}
 						transition={{ duration: 0.3 }}
 					>
-						<img src="/willow.png" className="update-splash-logo" alt="Willow" />
+						<WillowDuckMark className="update-splash-logo" title="Willow" />
 						<p className="update-splash-text">
 							{updateStatus === "checking" && "Checking for updates..."}
 							{updateStatus === "downloading" && `Baixando atualização... ${updateProgress}%`}

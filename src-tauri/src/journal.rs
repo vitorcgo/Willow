@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const MAX_MONTH_BYTES: usize = 2 * 1024 * 1024;
 
@@ -134,26 +134,44 @@ fn summary_from_payload(date: &str, payload: Option<&Value>) -> JournalSummary {
 
 #[tauri::command]
 pub fn open_journal_window(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window("settings")
-        .ok_or_else(|| "A janela de configurações não está disponível".to_string())?;
-    let _ = window.set_size(tauri::LogicalSize::new(1180.0, 760.0));
-    let _ = window.center();
-    let _ = window.show();
-    let _ = window.unminimize();
-    let _ = window.set_focus();
-    let _ = window.emit("journal-opened", ());
-    let delayed_app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(160)).await;
-        let _ = delayed_app.emit("journal-opened", ());
-    });
+    if let Some(window) = app.get_webview_window("journal") {
+        let _ = window.unmaximize();
+        let _ = window.set_size(tauri::LogicalSize::new(1280.0, 720.0));
+        let _ = window.center();
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        let _ = window.eval(
+            "document.querySelector('.journal-ide')?.scrollTo({ top: 0, left: 0, behavior: 'instant' }); window.scrollTo(0, 0);",
+        );
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(
+        &app,
+        "journal",
+        WebviewUrl::App("settings.html?journal=1".into()),
+    )
+    .title("Willow Journal")
+    .inner_size(1280.0, 720.0)
+    .min_inner_size(760.0, 560.0)
+    .center()
+    .decorations(false)
+    .transparent(false)
+    .resizable(true)
+    .maximizable(true)
+    .minimizable(true)
+    .closable(true)
+    .shadow(true)
+    .focused(true)
+    .build()
+    .map_err(|error| format!("Não foi possível abrir o Willow Journal: {error}"))?;
     Ok(())
 }
 
 #[tauri::command]
 pub fn close_journal_window(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("settings") {
+    if let Some(window) = app.get_webview_window("journal") {
         window
             .hide()
             .map_err(|error| format!("Não foi possível fechar o Journal: {error}"))?;

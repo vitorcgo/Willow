@@ -268,11 +268,11 @@ body {
 .journal-dock-button svg {
 	width: 43px;
 	height: 43px;
-	padding: 9px;
-	color: #fff;
+	padding: 11px;
+	color: var(--willow-text, #fff);
 	border-radius: 13px;
-	background: linear-gradient(145deg, #169de8, #6559e8);
-	filter: drop-shadow(0 0 9px var(--willow-accent-glow, rgba(0, 122, 255, 0.5)));
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.09));
+	filter: drop-shadow(0 0 8px color-mix(in srgb, var(--willow-text, #fff) 22%, transparent));
 }
 .dock-journal-launcher.is-pulsing .journal-dock-button {
 	box-shadow: 0 0 28px var(--willow-accent-glow, rgba(0, 122, 255, 0.55));
@@ -290,8 +290,14 @@ body {
 }
 .journal-tooltip {
 	min-width: 132px;
+	top: auto;
+	bottom: calc(100% + 12px);
 	display: grid;
 	gap: 2px;
+	padding: 7px 10px;
+	text-align: left;
+	transform-origin: bottom center;
+	z-index: 1000;
 }
 .journal-tooltip strong {
 	font-size: 11px;
@@ -303,7 +309,7 @@ body {
 .dock-icon-only .journal-dock-button svg {
 	width: 48px;
 	height: 48px;
-	padding: 10px;
+	padding: 12px;
 }
 
 .dock-settings-launcher .dock-icon {
@@ -332,12 +338,13 @@ body {
 	pointer-events: none;
 }
 
-.dock-settings-launcher .dock-icon img.willow-icon-img {
+.dock-settings-launcher .dock-icon .willow-icon-img {
 	position: relative;
 	z-index: 1;
-	width: 50px;
-	height: 50px;
-	filter: drop-shadow(0 0 8px var(--willow-accent-glow, rgba(0, 122, 255, 0.5)));
+	width: 34px;
+	height: 34px;
+	object-fit: contain;
+	filter: drop-shadow(0 0 7px color-mix(in srgb, var(--willow-text, #fff) 24%, transparent));
 }
 
 .dock-reorder-container > .dock-icon-wrapper:not(.dock-settings-launcher) {
@@ -455,9 +462,10 @@ body {
 	user-select: none;
 }
 
-.dock-icon img.willow-icon-img {
+.dock-icon .willow-icon-img {
 	width: 42px;
 	height: 42px;
+	object-fit: contain;
 }
 
 .dock-icon svg {
@@ -484,9 +492,9 @@ body {
 	box-shadow: 0 0 24px var(--willow-accent-glow, rgba(0, 122, 255, 0.48));
 }
 
-.dock-icon-only .dock-settings-launcher .dock-icon img.willow-icon-img {
-	width: 52px;
-	height: 52px;
+.dock-icon-only .dock-settings-launcher .dock-icon .willow-icon-img {
+	width: 38px;
+	height: 38px;
 }
 
 .dock-icon-only .fallback-icon {

@@ -3,17 +3,8 @@ import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import {
-	X,
-	Settings,
-	Palette,
-	PanelTop,
-	Monitor,
-	Layers,
-	Info,
-	Bot,
-	BookOpenCheck
-} from "lucide-react";
+import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Bot } from "lucide-react";
+import { WillowJournalMark } from "./components/WillowMarks";
 import {
 	useSettings,
 	GeneralTab,
@@ -42,7 +33,7 @@ class JournalErrorBoundary extends Component<{ children: ReactNode }, { failed: 
 			return (
 				<div className="journal-loading-shell journal-load-error" data-tauri-drag-region>
 					<span className="journal-loading-mark">
-						<BookOpenCheck size={25} />
+						<WillowJournalMark />
 					</span>
 					<div>
 						<strong>O Journal não conseguiu carregar</strong>
@@ -60,6 +51,7 @@ class JournalErrorBoundary extends Component<{ children: ReactNode }, { failed: 
 
 const isTauriRuntime = "__TAURI_INTERNALS__" in window;
 const appWindow = isTauriRuntime ? getCurrentWebviewWindow() : null;
+const isJournalWindow = appWindow?.label === "journal";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 	{ id: "general", label: "Geral", icon: Settings },
@@ -74,7 +66,9 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const [openingKey, setOpeningKey] = useState(0);
-	const [journalWorkspace, setJournalWorkspace] = useState(false);
+	const [journalWorkspace, setJournalWorkspace] = useState(
+		() => isJournalWindow || new URLSearchParams(window.location.search).get("journal") === "1"
+	);
 	const settings = useSettings();
 
 	useEffect(() => {
@@ -83,14 +77,16 @@ function SettingsApp() {
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;
+		if (isJournalWindow) {
+			setJournalWorkspace(true);
+			return;
+		}
 		const unlisten = listen("settings-opened", () => {
 			setJournalWorkspace(false);
 			setOpeningKey((value) => value + 1);
 		});
-		const unlistenJournal = listen("journal-opened", () => setJournalWorkspace(true));
 		return () => {
 			unlisten.then((remove) => remove());
-			unlistenJournal.then((remove) => remove());
 		};
 	}, []);
 
@@ -104,9 +100,10 @@ function SettingsApp() {
 	}, []);
 
 	useEffect(() => {
+		if (journalWorkspace) return;
 		invoke("resize_settings_window", {
-			width: (journalWorkspace ? 1180 : 620) * settings.scale,
-			height: (journalWorkspace ? 760 : 480) * settings.scale
+			width: 620 * settings.scale,
+			height: 480 * settings.scale
 		}).catch(console.error);
 	}, [settings.scale, journalWorkspace]);
 
@@ -129,7 +126,7 @@ function SettingsApp() {
 					fallback={
 						<div className="journal-loading-shell" data-tauri-drag-region>
 							<span className="journal-loading-mark">
-								<BookOpenCheck size={25} />
+								<WillowJournalMark />
 							</span>
 							<strong>Carregando Willow Journal…</strong>
 							<button onClick={() => invoke("close_journal_window")} title="Fechar">
@@ -217,6 +214,8 @@ function SettingsApp() {
 							setNotchTriggerWidthValue={settings.setNotchTriggerWidthValue}
 							notchTriggerHeight={settings.notchTriggerHeight}
 							setNotchTriggerHeightValue={settings.setNotchTriggerHeightValue}
+							browserTabProtection={settings.browserTabProtection}
+							toggleBrowserTabProtection={settings.toggleBrowserTabProtection}
 							calendarEnabled={settings.calendarEnabled}
 							toggleCalendar={settings.toggleCalendar}
 							timerSoundEnabled={settings.timerSoundEnabled}

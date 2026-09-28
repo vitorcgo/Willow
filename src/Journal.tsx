@@ -1,31 +1,42 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { motion, AnimatePresence } from "framer-motion";
 import {
-	ArrowLeft,
-	ArrowRight,
 	BookOpenText,
+	Ban,
 	CalendarDays,
 	Check,
 	ChevronLeft,
 	ChevronRight,
-	CloudMoon,
+	Circle,
+	ClipboardCheck,
+	Code2,
+	Clock3,
+	FileText,
+	Frown,
+	GitBranch,
+	ListTodo,
+	Meh,
+	Minus,
 	MoonStar,
+	PauseCircle,
 	Plus,
 	Printer,
 	Redo2,
-	Sparkles,
+	Smile,
+	Square,
+	Star,
 	Trash2,
 	Undo2,
 	X
 } from "lucide-react";
+import { WillowJournalMark } from "./components/WillowMarks";
 import { initTheme } from "./theme";
 import "./Journal.css";
 
 type DayPeriod = { morning: string; afternoon: string; night: string };
 type Habit = { id: string; name: string; days: Record<string, boolean> };
+type Task = { id: string; text: string; status: number };
 type JournalData = {
 	days: Record<string, string>;
 	week: Record<string, DayPeriod>;
@@ -33,10 +44,25 @@ type JournalData = {
 	diaryKeys: Record<string, string>;
 	sleep: Record<string, number>;
 	habits: Habit[];
+	tasks: Record<string, Task[]>;
+	mood: Record<string, string>;
 };
 
 const WEEK_DAYS = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
-const DEFAULT_HABITS = ["Cafeína", "Muay Thai", "Estudar", "Trabalhar", "Presencial", "Higiene"];
+const TASK_STATES = [
+	"A fazer",
+	"Em andamento",
+	"Concluída",
+	"Reagendada",
+	"Cancelada",
+	"Em aguardo"
+];
+const MOODS = [
+	{ id: "Ótimo", icon: Star, tone: "yellow" },
+	{ id: "Bom", icon: Smile, tone: "green" },
+	{ id: "Neutro", icon: Meh, tone: "cyan" },
+	{ id: "Difícil", icon: Frown, tone: "pink" }
+] as const;
 const KEYS = [
 	"☐ Tarefa",
 	"☑ Em andamento",
@@ -54,6 +80,8 @@ const KEYS = [
 	"⊚ Prazo final"
 ];
 
+const isTauriRuntime = "__TAURI_INTERNALS__" in window;
+
 function emptyData(): JournalData {
 	return {
 		days: {},
@@ -63,7 +91,9 @@ function emptyData(): JournalData {
 		diary: {},
 		diaryKeys: {},
 		sleep: {},
-		habits: DEFAULT_HABITS.map((name, index) => ({ id: `default-${index}`, name, days: {} }))
+		habits: [],
+		tasks: {},
+		mood: {}
 	};
 }
 
@@ -76,7 +106,9 @@ function normalizeData(value: Partial<JournalData> | null): JournalData {
 		diary: value.diary || {},
 		diaryKeys: value.diaryKeys || {},
 		sleep: value.sleep || {},
-		habits: Array.isArray(value.habits) ? value.habits : fallback.habits
+		habits: Array.isArray(value.habits) ? value.habits : fallback.habits,
+		tasks: value.tasks || {},
+		mood: value.mood || {}
 	};
 }
 
@@ -98,83 +130,116 @@ function cloneData(data: JournalData): JournalData {
 	return structuredClone(data);
 }
 
+async function loadMonth(key: string): Promise<Partial<JournalData> | null> {
+	if (isTauriRuntime) return invoke("journal_load_month", { month: key });
+	const value = localStorage.getItem(`willow-journal-preview:${key}`);
+	return value ? JSON.parse(value) : null;
+}
+
+async function saveMonth(key: string, data: JournalData): Promise<void> {
+	if (isTauriRuntime) {
+		await invoke("journal_save_month", { month: key, data });
+		return;
+	}
+	localStorage.setItem(`willow-journal-preview:${key}`, JSON.stringify(data));
+}
+
 export default function Journal() {
 	const now = useMemo(() => new Date(), []);
 	const [month, setMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
 	const [selectedDay, setSelectedDay] = useState(now.getDate());
+	const [bottomPanel, setBottomPanel] = useState<"habits" | "week">("habits");
+	const [weekPeriod, setWeekPeriod] = useState<keyof DayPeriod>("morning");
 	const [data, setData] = useState<JournalData>(emptyData);
 	const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
 	const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
 	const [history, setHistory] = useState<JournalData[]>([]);
 	const [historyIndex, setHistoryIndex] = useState(-1);
 	const [newHabit, setNewHabit] = useState("");
-	const [flow, setFlow] = useState<{
-		id: number;
-		x: number;
-		y: number;
-		target: "dock" | "island";
-		label: string;
-	} | null>(null);
+	const [newTask, setNewTask] = useState("");
 	const loadSequence = useRef(0);
+	const saveSequence = useRef(0);
+	const saveQueue = useRef<Promise<void>>(Promise.resolve());
+	const dataRef = useRef(data);
+	const loadedMonthRef = useRef(loadedMonth);
 
 	useEffect(() => initTheme(), []);
+	useEffect(() => {
+		const resetScroll = () => document.querySelector<HTMLElement>(".journal-ide")?.scrollTo(0, 0);
+		resetScroll();
+		const frame = window.requestAnimationFrame(resetScroll);
+		return () => window.cancelAnimationFrame(frame);
+	}, []);
+	useEffect(() => {
+		dataRef.current = data;
+	}, [data]);
+	useEffect(() => {
+		loadedMonthRef.current = loadedMonth;
+	}, [loadedMonth]);
 
 	const key = monthKey(month);
 	const dayKey = String(selectedDay);
 	const count = daysInMonth(month);
 	const cells = useMemo(() => monthCells(month), [month]);
+	const dayTasks = data.tasks[dayKey] || [];
+
+	const persist = useCallback((monthToSave: string, payload: JournalData) => {
+		const sequence = ++saveSequence.current;
+		const snapshot = cloneData(payload);
+		setSaveState("saving");
+		const operation = saveQueue.current
+			.catch(() => undefined)
+			.then(() => saveMonth(monthToSave, snapshot));
+		saveQueue.current = operation;
+		return operation
+			.then(() => {
+				if (sequence === saveSequence.current) setSaveState("saved");
+			})
+			.catch((error) => {
+				console.error("Não foi possível salvar o Journal", error);
+				if (sequence === saveSequence.current) setSaveState("error");
+				throw error;
+			});
+	}, []);
 
 	useEffect(() => {
 		const sequence = ++loadSequence.current;
 		setLoadedMonth(null);
-		invoke<Partial<JournalData> | null>("journal_load_month", { month: key })
+		loadMonth(key)
 			.then((saved) => {
 				if (sequence !== loadSequence.current) return;
 				const next = normalizeData(saved);
 				setData(next);
+				dataRef.current = next;
 				setHistory([cloneData(next)]);
 				setHistoryIndex(0);
 				setSelectedDay((current) => Math.min(current, daysInMonth(month)));
 				setLoadedMonth(key);
 				setSaveState("saved");
 			})
-			.catch(() => setSaveState("error"));
+			.catch((error) => {
+				console.error("Não foi possível carregar o Journal", error);
+				setSaveState("error");
+			});
 	}, [key, month]);
 
 	useEffect(() => {
 		if (loadedMonth !== key) return;
-		setSaveState("saving");
 		const timer = window.setTimeout(() => {
-			invoke("journal_save_month", { month: key, data })
-				.then(() => setSaveState("saved"))
-				.catch(() => setSaveState("error"));
-		}, 450);
+			persist(key, data).catch(() => undefined);
+		}, 320);
 		return () => window.clearTimeout(timer);
-	}, [data, key, loadedMonth]);
-
-	const animateFlow = useCallback(
-		(element: HTMLElement | null, target: "dock" | "island", label: string) => {
-			const rect = element?.getBoundingClientRect();
-			setFlow({
-				id: Date.now(),
-				x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
-				y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
-				target,
-				label
-			});
-			emit("journal-activity", { target, label }).catch(() => {});
-		},
-		[]
-	);
+	}, [data, key, loadedMonth, persist]);
 
 	const commit = useCallback(
 		(change: (draft: JournalData) => void) => {
 			setData((current) => {
 				const next = cloneData(current);
 				change(next);
+				dataRef.current = next;
 				setHistory((oldHistory) => {
 					const trimmed = oldHistory.slice(0, historyIndex + 1);
-					const updated = [...trimmed, cloneData(next)].slice(-40);
+					const updated = [...trimmed, cloneData(next)].slice(-50);
 					setHistoryIndex(updated.length - 1);
 					return updated;
 				});
@@ -187,30 +252,52 @@ export default function Journal() {
 	const undo = () => {
 		if (historyIndex <= 0) return;
 		const nextIndex = historyIndex - 1;
+		const next = cloneData(history[nextIndex]);
 		setHistoryIndex(nextIndex);
-		setData(cloneData(history[nextIndex]));
+		setData(next);
+		dataRef.current = next;
 	};
+
 	const redo = () => {
 		if (historyIndex >= history.length - 1) return;
 		const nextIndex = historyIndex + 1;
+		const next = cloneData(history[nextIndex]);
 		setHistoryIndex(nextIndex);
-		setData(cloneData(history[nextIndex]));
+		setData(next);
+		dataRef.current = next;
 	};
 
-	const changeMonth = (delta: number) => {
+	const changeMonth = async (delta: number) => {
+		if (loadedMonthRef.current === key) await persist(key, dataRef.current).catch(() => undefined);
 		setMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
 	};
 
-	const toggleHabit = (habitId: string, day: number, element: HTMLElement) => {
-		commit((draft) => {
-			const habit = draft.habits.find((item) => item.id === habitId);
-			if (habit) habit.days[String(day)] = !habit.days[String(day)];
-		});
-		animateFlow(
-			element,
-			day === now.getDate() && key === monthKey(now) ? "island" : "dock",
-			"Hábito atualizado"
-		);
+	const closeWindow = async () => {
+		if (loadedMonthRef.current === key) await persist(key, dataRef.current).catch(() => undefined);
+		if (!isTauriRuntime) return;
+		try {
+			await getCurrentWebviewWindow().hide();
+		} catch {
+			await invoke("close_journal_window");
+		}
+	};
+
+	const minimizeWindow = () => {
+		if (!isTauriRuntime) return;
+		getCurrentWebviewWindow().minimize().catch(() => undefined);
+	};
+
+	const toggleMaximizeWindow = () => {
+		if (!isTauriRuntime) return;
+		getCurrentWebviewWindow().toggleMaximize().catch(() => undefined);
+	};
+
+	const dragWindow = (event: React.MouseEvent<HTMLElement>) => {
+		if (!isTauriRuntime || event.button !== 0) return;
+		if ((event.target as HTMLElement).closest("button, input, textarea, select")) return;
+		getCurrentWebviewWindow()
+			.startDragging()
+			.catch(() => undefined);
 	};
 
 	const addHabit = () => {
@@ -220,373 +307,149 @@ export default function Journal() {
 		setNewHabit("");
 	};
 
-	const sleepPoints = useMemo(() => {
-		const values = Array.from({ length: count }, (_, index) =>
-			Number(data.sleep[String(index + 1)] || 0)
-		);
-		return values
-			.map(
-				(hours, index) => `${(index / Math.max(count - 1, 1)) * 100},${100 - (hours / 12) * 100}`
-			)
-			.join(" ");
-	}, [count, data.sleep]);
-
-	const dragWindow = (event: React.MouseEvent<HTMLElement>) => {
-		if (
-			event.button !== 0 ||
-			(event.target as HTMLElement).closest("button, input, textarea, select")
-		)
-			return;
-		getCurrentWebviewWindow()
-			.startDragging()
-			.catch(() => undefined);
+	const addTask = () => {
+		const text = newTask.trim();
+		if (!text) return;
+		commit((draft) => {
+			draft.tasks[dayKey] ||= [];
+			draft.tasks[dayKey].push({ id: crypto.randomUUID(), text, status: 0 });
+		});
+		setNewTask("");
 	};
 
-	const closeWindow = async () => {
-		try {
-			await getCurrentWebviewWindow().hide();
-		} catch {
-			await invoke("close_journal_window");
-		}
+	const sleepAverage = useMemo(() => {
+		const values = Object.values(data.sleep).filter((value) => value > 0);
+		return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+	}, [data.sleep]);
+
+	const completedToday = data.habits.filter((habit) => habit.days[dayKey]).length;
+	const monthLabelRaw = month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+	const monthLabel = monthLabelRaw.charAt(0).toUpperCase() + monthLabelRaw.slice(1);
+	const monthName = month.toLocaleDateString("pt-BR", { month: "long" });
+	const selectedDate = new Date(month.getFullYear(), month.getMonth(), selectedDay);
+	const weekDayIndex = (selectedDate.getDay() + 6) % 7;
+	const selectedWeekDay = WEEK_DAYS[weekDayIndex];
+	const selectedWeekDayLong = selectedDate.toLocaleDateString("pt-BR", { weekday: "long" });
+	const selectedFile = `${String(selectedDay).padStart(2, "0")}-${selectedWeekDay.toLowerCase()}.md`;
+	const diaryText = data.diary[dayKey] || "";
+	const diaryWords = diaryText.trim() ? diaryText.trim().split(/\s+/).length : 0;
+	const completedTasks = dayTasks.filter((task) => task.status === 2).length;
+	const selectedMood = data.mood[dayKey] || "";
+
+	const hasDayData = (day: number) => {
+		const id = String(day);
+		return Boolean(data.days[id] || data.diary[id] || data.tasks[id]?.length || data.mood[id]);
+	};
+
+	const pickDay = (day: number) => {
+		setSelectedDay(day);
+	};
+
+	const taskStatusIcon = (status: number) => {
+		if (status === 1) return <Clock3 size={13} />;
+		if (status === 2) return <Check size={13} />;
+		if (status === 3) return <Redo2 size={13} />;
+		if (status === 4) return <Ban size={13} />;
+		if (status === 5) return <PauseCircle size={13} />;
+		return <Circle size={12} />;
 	};
 
 	return (
-		<div className="journal-shell">
-			<header className="journal-titlebar" data-tauri-drag-region onMouseDown={dragWindow}>
+		<div className="journal-ide">
+			<header
+				className="journal-titlebar"
+				data-tauri-drag-region
+				onMouseDown={dragWindow}
+				onDoubleClick={(event) => {
+					if (!(event.target as HTMLElement).closest("button, input, textarea, select")) toggleMaximizeWindow();
+				}}
+			>
 				<div className="journal-brand" data-tauri-drag-region>
-					<span className="journal-brand-mark">
-						<BookOpenText size={25} />
-					</span>
-					<div>
-						<strong>Willow Journal</strong>
-						<span>Seu mês, salvo somente neste computador</span>
-					</div>
+					<Code2 size={17} />
+					<strong>willow-journal</strong>
+				</div>
+				<div className="journal-month-switcher">
+					<button onClick={() => changeMonth(-1)} title="Mês anterior"><ChevronLeft size={15} /></button>
+					<div><strong>{monthLabel}</strong><span>{count} dias organizados localmente</span></div>
+					<button onClick={() => changeMonth(1)} title="Próximo mês"><ChevronRight size={15} /></button>
 				</div>
 				<div className="journal-actions">
-					<span className={`journal-save-state ${saveState}`}>
-						{saveState === "saved"
-							? "Salvo"
-							: saveState === "saving"
-								? "Salvando…"
-								: "Erro ao salvar"}
-					</span>
-					<button onClick={undo} disabled={historyIndex <= 0} title="Desfazer">
-						<Undo2 size={16} />
-					</button>
-					<button onClick={redo} disabled={historyIndex >= history.length - 1} title="Refazer">
-						<Redo2 size={16} />
-					</button>
-					<button onClick={() => window.print()} title="Exportar ou imprimir">
-						<Printer size={16} />
-					</button>
-					<button className="journal-close" onClick={closeWindow} title="Fechar">
-						<X size={16} />
-					</button>
+					<span className={`journal-save-state ${saveState}`}><i />{saveState === "saved" ? "Salvo" : saveState === "saving" ? "Salvando" : "Erro"}</span>
+					<button onClick={undo} disabled={historyIndex <= 0} title="Desfazer"><Undo2 size={15} /></button>
+					<button onClick={redo} disabled={historyIndex >= history.length - 1} title="Refazer"><Redo2 size={15} /></button>
+					<button onClick={() => window.print()} title="Imprimir"><Printer size={15} /></button>
+					<span className="window-action-separator" />
+					<button onClick={minimizeWindow} title="Minimizar"><Minus size={16} /></button>
+					<button onClick={toggleMaximizeWindow} title="Maximizar ou restaurar"><Square size={13} /></button>
+					<button className="window-close" onClick={closeWindow} title="Fechar"><X size={16} /></button>
 				</div>
 			</header>
 
-			<div className="journal-monthbar">
-				<button onClick={() => changeMonth(-1)}>
-					<ChevronLeft size={18} />
-				</button>
-				<div>
-					<span>{month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</span>
-					<small>{count} dias organizados localmente</small>
-				</div>
-				<button onClick={() => changeMonth(1)}>
-					<ChevronRight size={18} />
-				</button>
+			<div className="journal-middle">
+				<main className="journal-editor">
+					<div className="journal-tabs">
+						<div className="journal-tab active">
+							<button><FileText size={14} /><span>{selectedFile.slice(0, -3)}<i>.md</i></span></button>
+						</div>
+					</div>
+					<div className="journal-breadcrumb"><span>willow-journal</span><b>›</b><span>{month.getFullYear()}</span><b>›</b><span>{monthName}</span><b>›</b><strong>{selectedFile}</strong></div>
+
+					<div className="journal-bento">
+						<section className="journal-card today-card">
+							<div className="card-title pink"><FileText size={14} /><strong>hoje.ts</strong></div>
+							<div className="today-code"><ol><li><b>export const</b> hoje = &#123;</li><li>dia: <em>{selectedDay}</em>,</li><li>semana: <q>{selectedWeekDayLong}</q>,</li><li>mes: <q>{monthName}</q>,</li><li>humor: <q>{selectedMood || "não definido"}</q>,</li><li>&#125;;</li></ol><span className="today-watermark">{String(selectedDay).padStart(2, "0")}</span></div>
+							<div className="mood-row">{MOODS.map(({ id, icon: Icon, tone }) => <button className={`${tone} ${selectedMood === id ? "active" : ""}`} key={id} onClick={() => commit((draft) => { draft.mood[dayKey] = draft.mood[dayKey] === id ? "" : id; })} title={id}><Icon size={15} /></button>)}</div>
+						</section>
+
+						<section className="journal-card calendar-card">
+							<div className="card-title cyan"><CalendarDays size={14} /><strong>calendario.json</strong><span>// clique em um dia para editar</span></div>
+							<div className="calendar-weekdays">{WEEK_DAYS.map((day) => <span key={day}>{day}</span>)}</div>
+							<div className="calendar-grid">{cells.map((day, index) => day ? <button key={day} className={`${selectedDay === day ? "selected" : ""} ${day === now.getDate() && key === monthKey(now) ? "today" : ""}`} onClick={() => pickDay(day)}><strong>{String(day).padStart(2, "0")}</strong>{hasDayData(day) && <i />}</button> : <div key={`empty-${index}`} />)}</div>
+							<label className="quick-note"><b>&gt;</b><input value={data.days[dayKey] || ""} onChange={(event) => commit((draft) => { draft.days[dayKey] = event.target.value; })} placeholder={`nota rápida do dia ${selectedDay}...`} /></label>
+						</section>
+
+						<section className="journal-card diary-card">
+							<div className="card-title yellow"><BookOpenText size={14} /><strong>diario.md</strong><span>{diaryWords} {diaryWords === 1 ? "palavra" : "palavras"}</span></div>
+							<div className="diary-editor"><div className="line-numbers">{Array.from({ length: 7 }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={diaryText} onChange={(event) => commit((draft) => { draft.diary[dayKey] = event.target.value; })} placeholder="// como foi o dia? escreva livremente..." /></div>
+							<select className="diary-key" value={data.diaryKeys[dayKey] || "N Nota"} onChange={(event) => commit((draft) => { draft.diaryKeys[dayKey] = event.target.value; })}>{KEYS.map((item) => <option key={item}>{item}</option>)}</select>
+						</section>
+
+						<section className="journal-card sleep-card">
+							<div className="card-title purple"><MoonStar size={14} /><strong>sono.json</strong><span>// média {sleepAverage.toFixed(1)}h · {Object.values(data.sleep).filter(Boolean).length} noites</span></div>
+							<div className="sleep-top"><strong>{Number(data.sleep[dayKey] || 0).toFixed(1)}<small>h</small></strong><div><button onClick={() => commit((draft) => { draft.sleep[dayKey] = Math.max(0, Number(draft.sleep[dayKey] || 0) - .5); })}><Minus size={14} /></button><button onClick={() => commit((draft) => { draft.sleep[dayKey] = Math.min(12, Number(draft.sleep[dayKey] || 0) + .5); })}><Plus size={14} /></button></div></div>
+							<div className="sleep-bars">{Array.from({ length: count }, (_, index) => { const day = index + 1; const hours = Number(data.sleep[String(day)] || 0); return <button key={day} className={selectedDay === day ? "active" : ""} onClick={() => pickDay(day)} title={`Dia ${day}: ${hours}h`}><i style={{ height: `${Math.max(3, hours / 12 * 100)}%` }} /></button>; })}</div>
+							<div className="sleep-axis"><span>01</span><span>15</span><span>{count}</span></div>
+						</section>
+
+						<section className="journal-card tasks-card">
+							<div className="card-title orange"><ListTodo size={14} /><strong>tarefas.todo</strong><span>{completedTasks}/{dayTasks.length} concluídas</span></div>
+							<div className="task-add"><b>+</b><input value={newTask} onChange={(event) => setNewTask(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addTask(); }} placeholder="nova tarefa e Enter..." /><button onClick={addTask}>add</button></div>
+							<div className="task-list">{dayTasks.length === 0 && <p>// nenhuma tarefa neste dia<br />// adicione uma e clique no ícone para mudar o status.</p>}{dayTasks.map((task) => <div className={`task-row status-${task.status}`} key={task.id}><button className="task-status" onClick={() => commit((draft) => { const current = draft.tasks[dayKey].find((item) => item.id === task.id); if (current) current.status = (current.status + 1) % TASK_STATES.length; })} title={TASK_STATES[task.status]}>{taskStatusIcon(task.status)}</button><span>{task.text}</span><small>{TASK_STATES[task.status]}</small><button className="task-delete" onClick={() => commit((draft) => { draft.tasks[dayKey] = draft.tasks[dayKey].filter((item) => item.id !== task.id); })}><X size={12} /></button></div>)}</div>
+							<div className="task-legend">{TASK_STATES.map((state, index) => <span className={`status-${index}`} key={state}>{taskStatusIcon(index)} {state.toLowerCase()}</span>)}</div>
+						</section>
+
+						<section className="journal-card ring-card">
+							<div className="card-title green"><ClipboardCheck size={14} /><strong>habitos.hoje</strong><span>// dia {selectedDay}</span></div>
+							<div className="ring-content"><div className="habit-ring" style={{ "--progress": `${data.habits.length ? completedToday / data.habits.length * 360 : 0}deg` } as React.CSSProperties}><span /></div><div><strong>{completedToday}/{data.habits.length}</strong><span>hábitos feitos no dia</span></div></div>
+						</section>
+
+						<section className="journal-card progress-card">
+							<div className="card-title cyan"><ListTodo size={14} /><strong>progresso.log</strong><span>// dias concluídos no mês</span></div>
+							<div className="progress-list">{data.habits.slice(0, 3).map((habit, index) => { const done = Object.values(habit.days).filter(Boolean).length; return <div key={habit.id} className={`tone-${index}`}><span>{habit.name}</span><i><b style={{ width: `${done / count * 100}%` }} /></i><small>{done}/{count}</small></div>; })}</div>
+						</section>
+					</div>
+
+					<section className="journal-bottom-panel">
+						<header><button className={bottomPanel === "habits" ? "active" : ""} onClick={() => setBottomPanel("habits")}>HÁBITOS <b>{data.habits.length}</b></button><button className={bottomPanel === "week" ? "active" : ""} onClick={() => setBottomPanel("week")}>SEMANA</button><span>// clique no número do dia para selecioná-lo</span></header>
+						{bottomPanel === "habits" ? <div className="habits-panel">
+							<div className="habit-add"><b>+</b><input value={newHabit} onChange={(event) => setNewHabit(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addHabit(); }} placeholder="novo hábito e Enter..." /><button onClick={addHabit}>adicionar</button></div>
+							<div className="habits-scroll"><table><thead><tr><th>hábito</th>{Array.from({ length: count }, (_, index) => <th className={selectedDay === index + 1 ? "selected-day" : ""} key={index}><button onClick={() => pickDay(index + 1)}>{String(index + 1).padStart(2, "0")}</button></th>)}<th /></tr></thead><tbody>{data.habits.map((habit, habitIndex) => <tr className={`tone-${habitIndex}`} key={habit.id}><td><i />{habit.name}</td>{Array.from({ length: count }, (_, index) => { const day = index + 1; const active = habit.days[String(day)]; return <td className={selectedDay === day ? "selected-day" : ""} key={day}><button className={active ? "done" : ""} onClick={() => commit((draft) => { const current = draft.habits.find((item) => item.id === habit.id); if (current) current.days[String(day)] = !current.days[String(day)]; })}>{active && <Check size={10} />}</button></td>; })}<td><button className="habit-delete" onClick={() => commit((draft) => { draft.habits = draft.habits.filter((item) => item.id !== habit.id); })}><Trash2 size={12} /></button></td></tr>)}</tbody></table></div>
+						</div> : <div className="week-panel"><nav>{(["morning", "afternoon", "night"] as const).map((period) => <button className={weekPeriod === period ? "active" : ""} key={period} onClick={() => setWeekPeriod(period)}>{period === "morning" ? "MANHÃ" : period === "afternoon" ? "TARDE" : "NOITE"}</button>)}</nav><div>{WEEK_DAYS.map((day) => <label key={day}><span>{day}</span><textarea value={data.week[day]?.[weekPeriod] || ""} onChange={(event) => commit((draft) => { draft.week[day] ||= { morning: "", afternoon: "", night: "" }; draft.week[day][weekPeriod] = event.target.value; })} placeholder="anotação..." /></label>)}</div></div>}
+					</section>
+				</main>
 			</div>
 
-			<main className="journal-grid">
-				<section className="journal-card calendar-card">
-					<div className="card-heading">
-						<div>
-							<CalendarDays size={18} />
-							<span>Calendário mensal</span>
-						</div>
-						<small>Clique em um dia para editar</small>
-					</div>
-					<div className="calendar-weekdays">
-						{WEEK_DAYS.map((day) => (
-							<span key={day}>{day}</span>
-						))}
-					</div>
-					<div className="calendar-grid">
-						{cells.map((day, index) =>
-							day ? (
-								<button
-									key={day}
-									className={`${selectedDay === day ? "selected" : ""} ${day === now.getDate() && key === monthKey(now) ? "today" : ""}`}
-									onClick={() => setSelectedDay(day)}
-								>
-									<strong>{day}</strong>
-									{data.days[String(day)] && <span>{data.days[String(day)].split("\n")[0]}</span>}
-								</button>
-							) : (
-								<div key={`empty-${index}`} />
-							)
-						)}
-					</div>
-					<textarea
-						className="day-note"
-						value={data.days[dayKey] || ""}
-						onChange={(event) =>
-							commit((draft) => {
-								draft.days[dayKey] = event.target.value;
-							})
-						}
-						placeholder={`Notas rápidas do dia ${selectedDay}…`}
-					/>
-				</section>
-
-				<section className="journal-card sleep-card">
-					<div className="card-heading">
-						<div>
-							<MoonStar size={18} />
-							<span>Sono</span>
-						</div>
-						<small>
-							{Number(data.sleep[dayKey] || 0).toFixed(1)}h no dia {selectedDay}
-						</small>
-					</div>
-					<div className="sleep-chart">
-						<div className="sleep-axis">
-							<span>12h</span>
-							<span>6h</span>
-							<span>0h</span>
-						</div>
-						<svg
-							viewBox="0 0 100 100"
-							preserveAspectRatio="none"
-							aria-label="Gráfico mensal de sono"
-						>
-							<defs>
-								<linearGradient id="sleepStroke">
-									<stop stopColor="#53b7ff" />
-									<stop offset="1" stopColor="#8c7dff" />
-								</linearGradient>
-							</defs>
-							<polyline
-								points={sleepPoints}
-								fill="none"
-								stroke="url(#sleepStroke)"
-								strokeWidth="2.4"
-								vectorEffect="non-scaling-stroke"
-							/>
-							{Array.from({ length: count }, (_, index) => {
-								const day = index + 1;
-								const hours = Number(data.sleep[String(day)] || 0);
-								return (
-									<circle
-										key={day}
-										cx={(index / Math.max(count - 1, 1)) * 100}
-										cy={100 - (hours / 12) * 100}
-										r={selectedDay === day ? 2.4 : 1.35}
-										className={selectedDay === day ? "active" : ""}
-										onClick={() => setSelectedDay(day)}
-									>
-										<title>
-											Dia {day}: {hours}h
-										</title>
-									</circle>
-								);
-							})}
-						</svg>
-					</div>
-					<div className="sleep-editor">
-						<CloudMoon size={17} />
-						<input
-							type="range"
-							min="0"
-							max="12"
-							step="0.5"
-							value={data.sleep[dayKey] || 0}
-							onChange={(event) =>
-								commit((draft) => {
-									draft.sleep[dayKey] = Number(event.target.value);
-								})
-							}
-						/>
-						<strong>{Number(data.sleep[dayKey] || 0).toFixed(1)}h</strong>
-					</div>
-				</section>
-
-				<section className="journal-card weekly-card">
-					<div className="card-heading">
-						<div>
-							<Sparkles size={18} />
-							<span>Anotação da semana</span>
-						</div>
-						<small>Manhã, tarde e noite</small>
-					</div>
-					<div className="week-list">
-						{WEEK_DAYS.map((day) => (
-							<div className="week-row" key={day}>
-								<strong>{day}</strong>
-								{(["morning", "afternoon", "night"] as const).map((period) => (
-									<input
-										key={period}
-										value={data.week[day]?.[period] || ""}
-										onChange={(event) =>
-											commit((draft) => {
-												draft.week[day] ||= { morning: "", afternoon: "", night: "" };
-												draft.week[day][period] = event.target.value;
-											})
-										}
-										placeholder={
-											period === "morning" ? "Manhã" : period === "afternoon" ? "Tarde" : "Noite"
-										}
-									/>
-								))}
-							</div>
-						))}
-					</div>
-				</section>
-
-				<section className="journal-card diary-card">
-					<div className="card-heading">
-						<div>
-							<BookOpenText size={18} />
-							<span>Diário do dia {selectedDay}</span>
-						</div>
-						<select
-							value={data.diaryKeys[dayKey] || "N Nota"}
-							onChange={(event) =>
-								commit((draft) => {
-									draft.diaryKeys[dayKey] = event.target.value;
-								})
-							}
-						>
-							{KEYS.map((item) => (
-								<option key={item}>{item}</option>
-							))}
-						</select>
-					</div>
-					<textarea
-						value={data.diary[dayKey] || ""}
-						onChange={(event) =>
-							commit((draft) => {
-								draft.diary[dayKey] = event.target.value;
-							})
-						}
-						placeholder="Registre uma reflexão, memória, ideia ou acontecimento…"
-					/>
-					<div className="keys-strip">
-						{KEYS.slice(0, 8).map((item) => (
-							<button
-								key={item}
-								onClick={() =>
-									commit((draft) => {
-										draft.diary[dayKey] =
-											`${draft.diary[dayKey] || ""}${draft.diary[dayKey] ? "\n" : ""}${item.split(" ")[0]} `;
-									})
-								}
-							>
-								{item}
-							</button>
-						))}
-					</div>
-				</section>
-
-				<section className="journal-card habits-card">
-					<div className="card-heading">
-						<div>
-							<Check size={18} />
-							<span>Controle de hábitos</span>
-						</div>
-						<small>
-							{data.habits.filter((habit) => habit.days[dayKey]).length}/{data.habits.length} no dia
-							selecionado
-						</small>
-					</div>
-					<div className="habit-add">
-						<input
-							value={newHabit}
-							onChange={(event) => setNewHabit(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") addHabit();
-							}}
-							placeholder="Novo hábito"
-						/>
-						<button onClick={addHabit}>
-							<Plus size={15} />
-							Adicionar
-						</button>
-					</div>
-					<div className="habits-scroll">
-						<table>
-							<thead>
-								<tr>
-									<th>Hábito</th>
-									{Array.from({ length: count }, (_, index) => (
-										<th key={index}>{index + 1}</th>
-									))}
-									<th />
-								</tr>
-							</thead>
-							<tbody>
-								{data.habits.map((habit) => (
-									<tr key={habit.id}>
-										<td>{habit.name}</td>
-										{Array.from({ length: count }, (_, index) => {
-											const day = index + 1;
-											const active = habit.days[String(day)];
-											return (
-												<td key={day}>
-													<button
-														className={active ? "done" : ""}
-														onClick={(event) => toggleHabit(habit.id, day, event.currentTarget)}
-														aria-label={`${habit.name}, dia ${day}`}
-													>
-														{active && <Check size={11} />}
-													</button>
-												</td>
-											);
-										})}
-										<td>
-											<button
-												className="habit-delete"
-												onClick={() =>
-													commit((draft) => {
-														draft.habits = draft.habits.filter((item) => item.id !== habit.id);
-													})
-												}
-											>
-												<Trash2 size={13} />
-											</button>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</section>
-			</main>
-
-			<AnimatePresence>
-				{flow && (
-					<motion.div
-						key={flow.id}
-						className="journal-flow"
-						initial={{ x: flow.x, y: flow.y, opacity: 0, scale: 0.65 }}
-						animate={{
-							x: window.innerWidth / 2,
-							y: flow.target === "island" ? 12 : window.innerHeight - 8,
-							opacity: [0, 1, 1, 0],
-							scale: [0.65, 1, 0.8, 0.25]
-						}}
-						transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
-						onAnimationComplete={() => setFlow(null)}
-					>
-						<span className="journal-flow-mark">
-							<BookOpenText size={15} />
-						</span>
-						<span>{flow.label}</span>
-						{flow.target === "dock" ? <ArrowRight size={13} /> : <ArrowLeft size={13} />}
-					</motion.div>
-				)}
-			</AnimatePresence>
+			<footer className="journal-statusbar"><span><WillowJournalMark /> willow-journal</span><span><GitBranch size={12} /> main*</span><span>tarefas {completedTasks}/{dayTasks.length}</span><span>hábitos {completedToday}/{data.habits.length}</span><span>sono {Number(data.sleep[dayKey] || 0).toFixed(1)}h</span><i /><span>Ln {selectedDay}, Col 1</span><span>UTF-8</span><span>Markdown</span><span>{saveState === "saved" ? "Salvo" : saveState === "saving" ? "Salvando" : "Erro"}</span></footer>
 		</div>
 	);
 }

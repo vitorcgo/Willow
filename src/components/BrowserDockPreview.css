@@ -48,9 +48,10 @@
 }
 
 .browser-dock-willow img {
-	width: 45px;
-	height: 45px;
+	width: 34px;
+	height: 34px;
 	object-fit: contain;
+	filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.34));
 	pointer-events: none;
 }
 

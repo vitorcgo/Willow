@@ -52,7 +52,7 @@ const WIDGET_DEFS: WidgetDef[] = [
 	{ id: "ram", label: "RAM", icon: MemoryStick, color: "#a78bfa" },
 	{ id: "disk", label: "Disco", icon: HardDrive, color: "#38bdf8" },
 	{ id: "net", label: "Rede", icon: ArrowUpDown, color: "#2dd4bf" },
-	{ id: "journal", label: "Journal", icon: BookOpenCheck, color: "#58bfff" }
+	{ id: "journal", label: "Journal", icon: BookOpenCheck, color: "#ffffff" }
 ];
 
 const DEFAULT_CONFIG: WidgetConfig = {

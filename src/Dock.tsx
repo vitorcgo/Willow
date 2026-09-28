@@ -2,20 +2,11 @@ import { useState, useEffect, useMemo, useRef, memo } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import {
-	HardDrive,
-	Usb,
-	Download,
-	FileText,
-	Images,
-	Trash2,
-	Disc3,
-	Network,
-	BookOpenCheck
-} from "lucide-react";
+import { HardDrive, Usb, Download, FileText, Images, Trash2, Disc3, Network } from "lucide-react";
 import "./Dock.css";
 import { initTheme } from "./theme";
 import { useSettingsSync } from "./hooks/useSettingsSync";
+import { WillowDuckMark, WillowJournalMark } from "./components/WillowMarks";
 
 interface AppInfo {
 	name: string;
@@ -1007,12 +998,7 @@ const Dock = memo(function Dock() {
 												invoke("open_settings_window");
 											}}
 										>
-											<img
-												src="/willow.png"
-												alt="Willow"
-												className="willow-icon-img"
-												draggable={false}
-											/>
+											<WillowDuckMark className="willow-icon-img" title="Willow" />
 										</motion.div>
 									</motion.div>
 								)}
@@ -1052,7 +1038,7 @@ const Dock = memo(function Dock() {
 												invoke("open_journal_window");
 											}}
 										>
-											<BookOpenCheck size={27} strokeWidth={2.1} aria-label="Willow Journal" />
+											<WillowJournalMark aria-label="Willow Journal" />
 										</motion.button>
 										{journalSummary?.hasDiary && <span className="journal-complete-dot" />}
 									</motion.div>

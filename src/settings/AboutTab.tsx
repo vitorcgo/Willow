@@ -1,5 +1,6 @@
 import { Download, RefreshCw, FileDown, Upload } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { WillowDuckMark } from "../components/WillowMarks";
 
 interface AboutTabProps {
 	appVersion: string;
@@ -67,7 +68,7 @@ export function AboutTab({
 	return (
 		<div className="about-tab-container">
 			<div className="about-header">
-				<img src="/willow.png" className="about-logo" alt="Logo do Willow" />
+				<WillowDuckMark className="about-logo" title="Willow" />
 				<h1 className="about-title">Willow</h1>
 				<p className="about-version">Versão {appVersion}</p>
 			</div>

@@ -40,7 +40,11 @@ body,
 .splash-logo {
 	width: 120px;
 	height: 120px;
-	object-fit: contain;
+	color: var(--willow-text, #fff);
+}
+.splash-logo svg {
+	width: 100%;
+	height: 100%;
 }
 
 /* ─── Auto-Update Splash ─────────────────────────────────────────────────── */
@@ -59,8 +63,8 @@ body,
 .update-splash-logo {
 	width: 100px;
 	height: 100px;
-	object-fit: contain;
 	margin-bottom: 20px;
+	color: var(--willow-text, #fff);
 }
 
 .update-splash-text {

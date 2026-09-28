@@ -1380,6 +1380,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
         let mut last_dock_maximized: Option<bool> = None;
         let mut last_fg_maximized = false;
         let mut last_hwnd = HWND(std::ptr::null_mut());
+        let mut foreground_is_browser = false;
         let mut last_emit = Instant::now();
         let mut is_known_shell = false;
         let my_process_id = std::process::id();
@@ -1462,6 +1463,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 {
                     last_hwnd = hwnd;
                     last_fg_maximized = fg_is_maximized;
+                    foreground_is_browser = is_browser_process(hwnd);
                     let mut class_name = [0u8; 256];
                     let len = windows::Win32::UI::WindowsAndMessaging::GetClassNameA(
                         hwnd,
@@ -1610,6 +1612,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     should_overlap = false;
                     current_is_fs = false;
                     is_known_shell = false;
+                    foreground_is_browser = false;
                 }
 
                 // Only report dock overlap when the dock window is actually visible.
@@ -1629,6 +1632,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 CURRENT_NOTCH_OVERLAP
                     .store(if should_notch_overlap { 1 } else { 0 }, Ordering::Relaxed);
                 CURRENT_FOREGROUND_FULLSCREEN.store(current_is_fs, Ordering::Relaxed);
+                CURRENT_FOREGROUND_BROWSER.store(foreground_is_browser, Ordering::Relaxed);
 
                 if Some(effective_dock_overlap) != last_dock_overlap
                     || last_emit.elapsed() >= Duration::from_secs(3)
@@ -2137,6 +2141,8 @@ static MH_LAST_LEFT_EDGE_HOVER: AtomicI32 = AtomicI32::new(-1);
 static MH_LAST_RIGHT_EDGE_HOVER: AtomicI32 = AtomicI32::new(-1);
 static MH_DOCK_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_TOPBAR_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
+static MH_BROWSER_TRIGGER_STARTED_MS: AtomicI64 = AtomicI64::new(0);
+static MH_BROWSER_TRIGGER_ARMED_UNTIL_MS: AtomicI64 = AtomicI64::new(0);
 static MH_LEFT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_RIGHT_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
 static MH_AI_EXPIRY_MS: AtomicI64 = AtomicI64::new(0);
@@ -2192,6 +2198,57 @@ fn cached_setting_i32(key: &str, default: i32) -> i32 {
             _ => None,
         })
         .unwrap_or(default)
+}
+
+fn is_supported_browser_executable(executable: &str) -> bool {
+    matches!(
+        executable,
+        "chrome.exe"
+            | "msedge.exe"
+            | "firefox.exe"
+            | "brave.exe"
+            | "opera.exe"
+            | "opera_gx.exe"
+            | "vivaldi.exe"
+            | "arc.exe"
+            | "waterfox.exe"
+            | "floorp.exe"
+            | "zen.exe"
+    )
+}
+
+fn is_browser_process(hwnd: HWND) -> bool {
+    if hwnd.is_invalid() {
+        return false;
+    }
+
+    unsafe {
+        let mut process_id = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+        if process_id == 0 || process_id == std::process::id() {
+            return false;
+        }
+
+        let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) else {
+            return false;
+        };
+        let mut path = [0u16; 512];
+        let mut length = path.len() as u32;
+        let result = QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            windows::core::PWSTR(path.as_mut_ptr()),
+            &mut length,
+        );
+        let _ = CloseHandle(handle);
+        if result.is_err() {
+            return false;
+        }
+
+        let full_path = String::from_utf16_lossy(&path[..length as usize]).to_lowercase();
+        let executable = full_path.rsplit('\\').next().unwrap_or("");
+        is_supported_browser_executable(executable)
+    }
 }
 
 fn notch_trigger_horizontal_bounds(
@@ -2537,6 +2594,9 @@ unsafe extern "system" fn mouse_hook_proc(
                         let in_notch_hover = NOTCH_IS_HOVERED.load(Ordering::Relaxed);
                         let mut is_notch_hovered = false;
                         let scale = main_win.scale_factor().unwrap_or(1.0);
+                        let browser_protection =
+                            cached_setting_is_true("willow-browser-tab-protection", true)
+                                && CURRENT_FOREGROUND_BROWSER.load(Ordering::Relaxed);
                         let trigger_position =
                             cached_setting_text("willow-notch-trigger-position", "center");
                         let trigger_width = cached_setting_i32("willow-notch-trigger-width", 20);
@@ -2555,7 +2615,36 @@ unsafe extern "system" fn mouse_hook_proc(
                                 && cursor.x <= right
                         });
 
-                        if at_top_edge || in_notch_hover {
+                        // Browsers place their tab strip directly behind Willow. In that case,
+                        // merely crossing the visible island must not steal the click. Require a
+                        // short, deliberate dwell in the thin top-edge trigger before enabling
+                        // hit testing. The global mouse hook can still observe this strip while
+                        // the WebView itself remains click-through.
+                        let browser_interaction_armed = if browser_protection {
+                            if at_top_edge {
+                                let started = MH_BROWSER_TRIGGER_STARTED_MS.load(Ordering::Relaxed);
+                                if started == 0 {
+                                    MH_BROWSER_TRIGGER_STARTED_MS.store(now, Ordering::Relaxed);
+                                } else if now - started >= 280 {
+                                    MH_BROWSER_TRIGGER_ARMED_UNTIL_MS
+                                        .store(now + 1200, Ordering::Relaxed);
+                                }
+                            } else {
+                                MH_BROWSER_TRIGGER_STARTED_MS.store(0, Ordering::Relaxed);
+                            }
+                            if in_notch_hover {
+                                MH_BROWSER_TRIGGER_ARMED_UNTIL_MS
+                                    .store(now + 1200, Ordering::Relaxed);
+                            }
+                            in_notch_hover
+                                || now < MH_BROWSER_TRIGGER_ARMED_UNTIL_MS.load(Ordering::Relaxed)
+                        } else {
+                            MH_BROWSER_TRIGGER_STARTED_MS.store(0, Ordering::Relaxed);
+                            MH_BROWSER_TRIGGER_ARMED_UNTIL_MS.store(0, Ordering::Relaxed);
+                            true
+                        };
+
+                        if (at_top_edge && browser_interaction_armed) || in_notch_hover {
                             is_notch_hovered = true;
                             MH_TOPBAR_EXPIRY_MS.store(now + 500, Ordering::Relaxed);
                         }
@@ -2567,13 +2656,13 @@ unsafe extern "system" fn mouse_hook_proc(
                             if let Ok(region) = NOTCH_RECT.try_lock() {
                                 if let Some(r) = *region {
                                     let scale = main_win.scale_factor().unwrap_or(1.0);
-                                    let pad_x = (20.0 * scale) as i32;
+                                    let pad_x = (6.0 * scale) as i32;
                                     let pad_y_bottom = (5.0 * scale) as i32;
                                     // Hysteresis keeps the notch interactive a little past
                                     // its bounds once grabbed, so removing the edge-forced
                                     // interactivity doesn't reintroduce boundary flicker.
                                     let hyst = if MH_LAST_MAIN_IGNORE.load(Ordering::Relaxed) == 0 {
-                                        (10.0 * scale) as i32
+                                        (6.0 * scale) as i32
                                     } else {
                                         0
                                     };
@@ -2586,7 +2675,8 @@ unsafe extern "system" fn mouse_hook_proc(
                                         + pad_y_bottom
                                         + hyst;
 
-                                    if cursor.x >= rx
+                                    if browser_interaction_armed
+                                        && cursor.x >= rx
                                         && cursor.x <= (rx + rw)
                                         && cursor.y >= ry_top
                                         && cursor.y <= ry_bottom
@@ -2599,7 +2689,8 @@ unsafe extern "system" fn mouse_hook_proc(
                                     // span, so peek/hover can't flicker at the
                                     // boundary. The screen corners stay click-through.
                                     let edge_pad = (60.0 * scale) as i32;
-                                    if at_top_edge
+                                    if browser_interaction_armed
+                                        && at_top_edge
                                         && cursor.x >= rx - edge_pad
                                         && cursor.x <= rx + rw + edge_pad
                                     {
@@ -3782,7 +3873,27 @@ unsafe extern "system" fn display_monitor_proc(
 
 #[cfg(test)]
 mod tests {
-    use super::{notch_trigger_horizontal_bounds, win_number_index};
+    use super::{
+        is_supported_browser_executable, notch_trigger_horizontal_bounds, win_number_index,
+    };
+
+    #[test]
+    fn browser_tab_protection_targets_browsers_only() {
+        for executable in [
+            "chrome.exe",
+            "msedge.exe",
+            "firefox.exe",
+            "brave.exe",
+            "opera.exe",
+            "vivaldi.exe",
+            "arc.exe",
+            "zen.exe",
+        ] {
+            assert!(is_supported_browser_executable(executable));
+        }
+        assert!(!is_supported_browser_executable("explorer.exe"));
+        assert!(!is_supported_browser_executable("code.exe"));
+    }
 
     #[test]
     fn win_number_maps_top_row_digits_only() {

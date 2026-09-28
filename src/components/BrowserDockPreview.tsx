@@ -9,6 +9,7 @@ import {
 	NotebookPen
 } from "lucide-react";
 import "./BrowserDockPreview.css";
+import { WillowDuckMark } from "./WillowMarks";
 
 const items = [
 	{ label: "Iniciar", icon: Grid2X2, active: false },
@@ -37,7 +38,7 @@ export function BrowserDockPreview({ onOpenSettings }: { onOpenSettings: () => v
 				title="Configurações do Willow"
 				onClick={onOpenSettings}
 			>
-				<img src="/willow.png" alt="Willow" />
+				<WillowDuckMark title="Willow" />
 			</button>
 			{items.slice(4).map(renderItem)}
 		</div>

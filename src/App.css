@@ -2546,10 +2546,14 @@ img {
 	display: grid;
 	place-items: center;
 	flex: 0 0 auto;
-	color: #fff;
+	color: var(--willow-text, #fff);
 	border-radius: 10px;
-	background: linear-gradient(145deg, #169de8, #6559e8);
-	box-shadow: 0 0 9px var(--willow-accent-glow, rgba(0, 122, 255, 0.45));
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.09));
+	box-shadow: 0 0 8px color-mix(in srgb, var(--willow-text, #fff) 18%, transparent);
+}
+.journal-island-logo svg {
+	width: 19px;
+	height: 19px;
 }
 .journal-island-head > div {
 	display: grid;
@@ -2590,7 +2594,7 @@ img {
 }
 .journal-island-stats svg {
 	grid-row: 1 / 3;
-	color: var(--willow-accent, #1597e8);
+	color: var(--willow-text, #fff);
 }
 .journal-island-stats strong {
 	font-size: 11px;

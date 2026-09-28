@@ -49,6 +49,7 @@ import {
 	StickyNote
 } from "lucide-react";
 import { DEFAULT_DEVICE_CAPABILITIES, type DeviceCapabilities } from "./deviceCapabilities";
+import { WillowJournalMark } from "./components/WillowMarks";
 
 interface JournalSummary {
 	completedHabits: number;
@@ -3016,13 +3017,23 @@ function App() {
 										>
 											<div className="journal-island-head">
 												<span className="journal-island-logo">
-													<BookOpenCheck size={19} />
+													<WillowJournalMark />
 												</span>
 												<div>
 													<strong>Willow Journal</strong>
 													<span>Resumo de hoje</span>
 												</div>
-												<button onClick={() => invoke("open_journal_window")}>Abrir</button>
+												<button
+													onPointerDown={(event) => event.stopPropagation()}
+													onClick={(event) => {
+														event.stopPropagation();
+														invoke("open_journal_window").catch((error) =>
+															console.error("Não foi possível abrir o Willow Journal", error)
+														);
+													}}
+												>
+													Abrir
+												</button>
 											</div>
 											<div className="journal-island-stats">
 												<div>

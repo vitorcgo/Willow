@@ -161,6 +161,9 @@ export function useSettings() {
 	const [notchTriggerHeight, setNotchTriggerHeight] = useState(() =>
 		parseInt(localStorage.getItem("willow-notch-trigger-height") || "4")
 	);
+	const [browserTabProtection, setBrowserTabProtection] = useState(
+		() => localStorage.getItem("willow-browser-tab-protection") !== "false"
+	);
 	const [aiMode, setAiMode] = useState(() => localStorage.getItem("willow-ai-mode") || "smart");
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(20);
 	const [updateStatus, setUpdateStatus] = useState<
@@ -270,6 +273,7 @@ export function useSettings() {
 			apply(getVal("willow-notch-trigger-height"), setNotchTriggerHeight, (v) =>
 				Math.min(16, Math.max(2, parseInt(v) || 4))
 			);
+			apply(getVal("willow-browser-tab-protection"), setBrowserTabProtection, readBool);
 			apply(getVal("willow-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("willow-ai-mode"), setAiMode, (v) =>
 				["fixed", "smart", "hidden"].includes(v) ? v : "smart"
@@ -334,6 +338,7 @@ export function useSettings() {
 			setNotchTriggerWidth(Math.min(50, Math.max(5, Number(value) || 20))),
 		"willow-notch-trigger-height": (value) =>
 			setNotchTriggerHeight(Math.min(16, Math.max(2, Number(value) || 4))),
+		"willow-browser-tab-protection": setBrowserTabProtection,
 		"willow-ai-mode": setAiMode,
 		"willow-dock-enabled": setDockEnabled,
 		"willow-dock-icon-only": setDockIconOnly,
@@ -755,6 +760,12 @@ export function useSettings() {
 		saveSetting("willow-notch-trigger-height", String(next));
 	};
 
+	const toggleBrowserTabProtection = () => {
+		const next = !browserTabProtection;
+		setBrowserTabProtection(next);
+		saveSetting("willow-browser-tab-protection", String(next));
+	};
+
 	const setAiModeValue = (newMode: string) => {
 		if (!["fixed", "smart", "hidden"].includes(newMode)) return;
 		setAiMode(newMode);
@@ -968,6 +979,8 @@ export function useSettings() {
 		setNotchTriggerWidthValue,
 		notchTriggerHeight,
 		setNotchTriggerHeightValue,
+		browserTabProtection,
+		toggleBrowserTabProtection,
 		aiMode,
 		setAiModeValue,
 		calendarEnabled,

@@ -12,6 +12,7 @@ import {
 	Sparkles,
 	Circle,
 	CloudSun,
+	ShieldCheck,
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
@@ -29,6 +30,8 @@ interface NotchTabProps {
 	setNotchTriggerWidthValue: (width: number) => void;
 	notchTriggerHeight: number;
 	setNotchTriggerHeightValue: (height: number) => void;
+	browserTabProtection: boolean;
+	toggleBrowserTabProtection: () => void;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
 	timerSoundEnabled: boolean;
@@ -72,6 +75,8 @@ export function NotchTab({
 	setNotchTriggerWidthValue,
 	notchTriggerHeight,
 	setNotchTriggerHeightValue,
+	browserTabProtection,
+	toggleBrowserTabProtection,
 	calendarEnabled,
 	toggleCalendar,
 	timerSoundEnabled,
@@ -125,7 +130,22 @@ export function NotchTab({
 					</select>
 				</SettingRow>
 
-				{notchMode !== "fixed" && (
+				<SettingRow
+					icon={ShieldCheck}
+					label="Proteger abas do navegador"
+					desc="Libera os cliques nas abas e exige uma breve pausa no gatilho superior"
+				>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={browserTabProtection}
+							onChange={toggleBrowserTabProtection}
+						/>
+						<span className="slider"></span>
+					</label>
+				</SettingRow>
+
+				{(notchMode !== "fixed" || browserTabProtection) && (
 					<>
 						<SettingRow
 							icon={MapPin}

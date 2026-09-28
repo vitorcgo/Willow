@@ -418,10 +418,14 @@ input:checked + .slider:before {
 	height: 46px;
 	display: grid;
 	place-items: center;
-	color: #fff;
+	color: var(--willow-text, #fff);
 	border-radius: 14px;
-	background: linear-gradient(145deg, #169de8, #6559e8);
-	box-shadow: 0 0 14px rgba(31, 157, 238, 0.55);
+	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.08));
+	box-shadow: 0 0 12px color-mix(in srgb, var(--willow-text, #fff) 18%, transparent);
+}
+.journal-loading-mark svg {
+	width: 25px;
+	height: 25px;
 }
 .journal-loading-shell button {
 	position: absolute;
@@ -825,6 +829,7 @@ input:checked + .slider:before {
 	user-drag: none;
 	-webkit-user-drag: none;
 	transition: filter 0.2s ease;
+	color: var(--willow-text, #fff);
 }
 
 .about-title {
