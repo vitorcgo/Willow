@@ -8,6 +8,9 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
 	plugins: [react(), svgr()],
+	// Tauri serves production files through its own app protocol. Relative asset
+	// URLs keep lazy-loaded JS and CSS resolvable from every packaged window.
+	base: "./",
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//
