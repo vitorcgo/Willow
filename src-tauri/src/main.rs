@@ -132,6 +132,7 @@ fn main() {
             open_app,
             get_dock_system_items,
             open_system_location,
+            toggle_desktop,
             launch_new_instance,
             update_dock_rect,
             update_notch_rect,

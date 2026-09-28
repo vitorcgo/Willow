@@ -633,6 +633,13 @@ pub async fn get_dock_system_items() -> Vec<DockSystemItem> {
             kind: "recycle-bin".to_string(),
         });
 
+        items.push(DockSystemItem {
+            id: "show-desktop".to_string(),
+            name: "Mostrar área de trabalho".to_string(),
+            path: String::new(),
+            kind: "show-desktop".to_string(),
+        });
+
         items
     })
     .await
@@ -649,6 +656,49 @@ pub async fn open_system_location(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || launch_path(&path))
         .await
         .map_err(|error| format!("Não foi possível abrir o local: {error}"))
+}
+
+/// Mirrors Win+D: the first click shows the desktop and the next restores the
+/// windows that were visible before it. Injected events are ignored by Willow's
+/// own Win+Number hook, so this cannot accidentally launch a dock item.
+#[tauri::command]
+pub fn toggle_desktop() -> Result<(), String> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY,
+        VK_LWIN,
+    };
+
+    fn key_input(vk: VIRTUAL_KEY, key_up: bool) -> INPUT {
+        INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: vk,
+                    wScan: 0,
+                    dwFlags: if key_up {
+                        KEYEVENTF_KEYUP
+                    } else {
+                        Default::default()
+                    },
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        }
+    }
+
+    let d_key = VIRTUAL_KEY(0x44);
+    let inputs = [
+        key_input(VK_LWIN, false),
+        key_input(d_key, false),
+        key_input(d_key, true),
+        key_input(VK_LWIN, true),
+    ];
+    let sent = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+    if sent != inputs.len() as u32 {
+        return Err("O Windows não aceitou o comando para mostrar a área de trabalho".to_string());
+    }
+    Ok(())
 }
 
 /// Launches another instance of an app instead of focusing an existing window.

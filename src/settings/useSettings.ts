@@ -143,6 +143,9 @@ export function useSettings() {
 	const [dockSystemRecycleBin, setDockSystemRecycleBin] = useState(
 		() => localStorage.getItem("willow-dock-system-recycle-bin") !== "false"
 	);
+	const [dockSystemShowDesktop, setDockSystemShowDesktop] = useState(
+		() => localStorage.getItem("willow-dock-system-show-desktop") === "true"
+	);
 	const [dockMode, setDockMode] = useState(() => {
 		const raw = localStorage.getItem("willow-dock-mode") || "smart";
 		return raw === "auto-hide" ? "smart" : raw;
@@ -254,6 +257,7 @@ export function useSettings() {
 			apply(getVal("willow-dock-system-documents"), setDockSystemDocuments, readBool);
 			apply(getVal("willow-dock-system-pictures"), setDockSystemPictures, readBool);
 			apply(getVal("willow-dock-system-recycle-bin"), setDockSystemRecycleBin, readBool);
+			apply(getVal("willow-dock-system-show-desktop"), setDockSystemShowDesktop, readBool);
 
 			apply(getVal("willow-temp-unit"), setTempUnitFahrenheit, (v) => v === "fahrenheit");
 			apply(getVal("willow-scale"), setScale, parseFloat);
@@ -352,6 +356,7 @@ export function useSettings() {
 		"willow-dock-system-documents": setDockSystemDocuments,
 		"willow-dock-system-pictures": setDockSystemPictures,
 		"willow-dock-system-recycle-bin": setDockSystemRecycleBin,
+		"willow-dock-system-show-desktop": setDockSystemShowDesktop,
 		"willow-weather-enabled": setWeatherEnabled,
 		"willow-privacy-indicators-enabled": setPrivacyIndicatorsEnabled,
 		"willow-calendar-enabled": setCalendarEnabled,
@@ -693,6 +698,11 @@ export function useSettings() {
 				dockSystemRecycleBin,
 				setDockSystemRecycleBin,
 				"willow-dock-system-recycle-bin"
+			],
+			"show-desktop": [
+				dockSystemShowDesktop,
+				setDockSystemShowDesktop,
+				"willow-dock-system-show-desktop"
 			]
 		} as const;
 		const entry = entries[item as keyof typeof entries];
@@ -1018,6 +1028,7 @@ export function useSettings() {
 		dockSystemDocuments,
 		dockSystemPictures,
 		dockSystemRecycleBin,
+		dockSystemShowDesktop,
 		toggleDockSystemItem,
 
 		// Overlays

@@ -268,6 +268,7 @@ function SettingsApp() {
 							dockSystemDocuments={settings.dockSystemDocuments}
 							dockSystemPictures={settings.dockSystemPictures}
 							dockSystemRecycleBin={settings.dockSystemRecycleBin}
+							dockSystemShowDesktop={settings.dockSystemShowDesktop}
 							toggleDockSystemItem={settings.toggleDockSystemItem}
 						/>
 					)}

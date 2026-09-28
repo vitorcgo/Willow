@@ -2,7 +2,17 @@ import { useState, useEffect, useMemo, useRef, memo } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { HardDrive, Usb, Download, FileText, Images, Trash2, Disc3, Network } from "lucide-react";
+import {
+	HardDrive,
+	Usb,
+	Download,
+	FileText,
+	Images,
+	Trash2,
+	Disc3,
+	Network,
+	MonitorDown
+} from "lucide-react";
 import "./Dock.css";
 import { initTheme } from "./theme";
 import { useSettingsSync } from "./hooks/useSettingsSync";
@@ -117,6 +127,9 @@ const Dock = memo(function Dock() {
 	);
 	const [dockSystemRecycleBin, setDockSystemRecycleBin] = useState(
 		() => localStorage.getItem("willow-dock-system-recycle-bin") !== "false"
+	);
+	const [dockSystemShowDesktop, setDockSystemShowDesktop] = useState(
+		() => localStorage.getItem("willow-dock-system-show-desktop") === "true"
 	);
 	const [systemItems, setSystemItems] = useState<DockSystemItem[]>([]);
 	const [isMaximized, setIsMaximized] = useState(false);
@@ -297,6 +310,7 @@ const Dock = memo(function Dock() {
 			setDockSystemDocuments(getVal("willow-dock-system-documents", "false") === "true");
 			setDockSystemPictures(getVal("willow-dock-system-pictures", "false") === "true");
 			setDockSystemRecycleBin(getVal("willow-dock-system-recycle-bin", "true") === "true");
+			setDockSystemShowDesktop(getVal("willow-dock-system-show-desktop", "false") === "true");
 
 			const scaleVal = getVal("willow-scale");
 			if (scaleVal !== null) setScale(parseFloat(scaleVal));
@@ -352,6 +366,7 @@ const Dock = memo(function Dock() {
 		"willow-dock-system-documents": setDockSystemDocuments,
 		"willow-dock-system-pictures": setDockSystemPictures,
 		"willow-dock-system-recycle-bin": setDockSystemRecycleBin,
+		"willow-dock-system-show-desktop": setDockSystemShowDesktop,
 		"willow-scale": setScale
 	});
 
@@ -747,6 +762,7 @@ const Dock = memo(function Dock() {
 				if (item.kind === "documents") return dockSystemDocuments;
 				if (item.kind === "pictures") return dockSystemPictures;
 				if (item.kind === "recycle-bin") return dockSystemRecycleBin;
+				if (item.kind === "show-desktop") return dockSystemShowDesktop;
 				return false;
 			}),
 		[
@@ -755,7 +771,8 @@ const Dock = memo(function Dock() {
 			dockSystemDownloads,
 			dockSystemDocuments,
 			dockSystemPictures,
-			dockSystemRecycleBin
+			dockSystemRecycleBin,
+			dockSystemShowDesktop
 		]
 	);
 
@@ -1582,9 +1599,11 @@ function SystemDockSection({ items, side }: { items: DockSystemItem[]; side: "le
 					className="dock-icon-wrapper dock-system-button"
 					onClick={(event) => {
 						event.stopPropagation();
-						invoke("open_system_location", { path: item.path }).catch((error) =>
-							console.error(`Não foi possível abrir ${item.name}:`, error)
-						);
+						const command =
+							item.kind === "show-desktop"
+								? invoke("toggle_desktop")
+								: invoke("open_system_location", { path: item.path });
+						command.catch((error) => console.error(`Não foi possível abrir ${item.name}:`, error));
 					}}
 					initial={ITEM_INITIAL}
 					animate={ITEM_ANIMATE}
@@ -1613,6 +1632,7 @@ function SystemDockIcon({ kind }: { kind: string }) {
 	if (kind === "documents") return <FileText aria-hidden="true" />;
 	if (kind === "pictures") return <Images aria-hidden="true" />;
 	if (kind === "recycle-bin") return <Trash2 aria-hidden="true" />;
+	if (kind === "show-desktop") return <MonitorDown aria-hidden="true" />;
 	return <HardDrive aria-hidden="true" />;
 }
 

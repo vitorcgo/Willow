@@ -10,6 +10,7 @@ import {
 	FileText,
 	Images,
 	Trash2,
+	MonitorDown,
 	MoveHorizontal,
 	BookOpenText
 } from "lucide-react";
@@ -39,6 +40,7 @@ interface DockTabProps {
 	dockSystemDocuments: boolean;
 	dockSystemPictures: boolean;
 	dockSystemRecycleBin: boolean;
+	dockSystemShowDesktop: boolean;
 	toggleDockSystemItem: (item: string) => void;
 }
 
@@ -64,6 +66,7 @@ export function DockTab({
 	dockSystemDocuments,
 	dockSystemPictures,
 	dockSystemRecycleBin,
+	dockSystemShowDesktop,
 	toggleDockSystemItem
 }: DockTabProps) {
 	return (
@@ -238,6 +241,13 @@ export function DockTab({
 									desc="Abre a Lixeira do Windows"
 									checked={dockSystemRecycleBin}
 									onChange={() => toggleDockSystemItem("recycle-bin")}
+								/>
+								<SystemItemRow
+									icon={MonitorDown}
+									label="Mostrar área de trabalho"
+									desc="Minimiza tudo; clique novamente para restaurar"
+									checked={dockSystemShowDesktop}
+									onChange={() => toggleDockSystemItem("show-desktop")}
 									divider={false}
 								/>
 							</>
