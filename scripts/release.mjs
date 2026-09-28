@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,7 +29,10 @@ if (execSync(`git tag --list ${tag}`, { cwd: root }).toString().trim()) {
 	process.exit(1);
 }
 
-run(`bun scripts/bump-version.mjs ${version}`);
+execFileSync(process.execPath, ["scripts/bump-version.mjs", version], {
+	cwd: root,
+	stdio: "inherit"
+});
 
 const changed = execSync(`git diff --name-only -- ${versionFiles.join(" ")}`, { cwd: root })
 	.toString()
