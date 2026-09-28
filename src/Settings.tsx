@@ -1,10 +1,11 @@
-import { StrictMode, useState, useEffect, lazy, Suspense, Component, type ReactNode } from "react";
+import { StrictMode, useState, useEffect, Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Bot } from "lucide-react";
 import { WillowJournalMark } from "./components/WillowMarks";
+import Journal from "./Journal";
 import {
 	useSettings,
 	GeneralTab,
@@ -18,8 +19,6 @@ import {
 import type { SettingsTab } from "./settings/index";
 import { initTheme } from "./theme";
 import "./Settings.css";
-
-const Journal = lazy(() => import("./Journal"));
 
 class JournalErrorBoundary extends Component<
 	{ children: ReactNode },
@@ -133,21 +132,7 @@ function SettingsApp() {
 	if (journalWorkspace) {
 		return (
 			<JournalErrorBoundary>
-				<Suspense
-					fallback={
-						<div className="journal-loading-shell" data-tauri-drag-region>
-							<span className="journal-loading-mark">
-								<WillowJournalMark />
-							</span>
-							<strong>Carregando Willow Journal…</strong>
-							<button onClick={() => invoke("close_journal_window")} title="Fechar">
-								×
-							</button>
-						</div>
-					}
-				>
-					<Journal />
-				</Suspense>
+				<Journal />
 			</JournalErrorBoundary>
 		);
 	}
