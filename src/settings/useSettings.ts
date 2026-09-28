@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
-import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { getVersion } from "@tauri-apps/api/app";
 import type { UpdateCheckResult } from "../updater";
 import { useSettingsSync } from "../hooks/useSettingsSync";
@@ -122,9 +122,6 @@ export function useSettings() {
 	const [dockWinNumberEnabled, setDockWinNumberEnabled] = useState(
 		() => localStorage.getItem("willow-dock-win-number-enabled") !== "false"
 	);
-	const [dockJournalEnabled, setDockJournalEnabled] = useState(
-		() => localStorage.getItem("willow-dock-journal-enabled") !== "false"
-	);
 	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
 		() => localStorage.getItem("willow-dock-system-section-enabled") === "true"
 	);
@@ -164,7 +161,7 @@ export function useSettings() {
 	const [browserTabProtection, setBrowserTabProtection] = useState(
 		() => localStorage.getItem("willow-browser-tab-protection") !== "false"
 	);
-	const [aiMode, setAiMode] = useState(() => localStorage.getItem("willow-ai-mode") || "smart");
+	const [aiMode, setAiMode] = useState(() => localStorage.getItem("willow-ai-mode") || "hidden");
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(20);
 	const [updateStatus, setUpdateStatus] = useState<
 		"idle" | "checking" | "available" | "uptodate" | "error" | "downloading" | "installing"
@@ -248,7 +245,6 @@ export function useSettings() {
 			apply(getVal("willow-dock-icon-only"), setDockIconOnly, readBool);
 			apply(getVal("willow-dock-adaptive"), setDockAdaptive, readBool);
 			apply(getVal("willow-dock-win-number-enabled"), setDockWinNumberEnabled, readBool);
-			apply(getVal("willow-dock-journal-enabled"), setDockJournalEnabled, readBool);
 			apply(getVal("willow-dock-system-section-enabled"), setDockSystemSectionEnabled, readBool);
 			apply(getVal("willow-dock-system-section-side"), setDockSystemSectionSide, (value) =>
 				value === "left" ? "left" : "right"
@@ -316,8 +312,11 @@ export function useSettings() {
 			.catch(() => {});
 
 		isEnabled()
-			.then(setAutostart)
-			.catch(() => {});
+			.then(async (enabled) => {
+				if (!enabled && !import.meta.env.DEV) await enable();
+				setAutostart(import.meta.env.DEV ? enabled : true);
+			})
+			.catch(() => setAutostart(!import.meta.env.DEV));
 
 		getVersion()
 			.then((ver) => setAppVersion(ver || "0.1.0"))
@@ -345,7 +344,6 @@ export function useSettings() {
 		"willow-dock-preview-enabled": setDockPreviewEnabled,
 		"willow-dock-adaptive": setDockAdaptive,
 		"willow-dock-win-number-enabled": setDockWinNumberEnabled,
-		"willow-dock-journal-enabled": setDockJournalEnabled,
 		"willow-dock-system-section-enabled": setDockSystemSectionEnabled,
 		"willow-dock-system-section-side": (value) =>
 			setDockSystemSectionSide(String(value) === "left" ? "left" : "right"),
@@ -541,20 +539,6 @@ export function useSettings() {
 		};
 	}, []);
 
-	// ── Autostart ──
-	const toggleAutostart = async () => {
-		try {
-			const currentlyEnabled = await isEnabled();
-			if (currentlyEnabled) {
-				await disable();
-				setAutostart(false);
-			} else {
-				await enable();
-				setAutostart(true);
-			}
-		} catch (err) {}
-	};
-
 	// ── Simple boolean toggles ──
 	const toggleWeather = () => {
 		const next = !weatherEnabled;
@@ -685,12 +669,6 @@ export function useSettings() {
 		const next = !dockWinNumberEnabled;
 		setDockWinNumberEnabled(next);
 		saveSetting("willow-dock-win-number-enabled", String(next));
-	};
-
-	const toggleDockJournal = () => {
-		const next = !dockJournalEnabled;
-		setDockJournalEnabled(next);
-		saveSetting("willow-dock-journal-enabled", String(next));
 	};
 
 	const toggleDockSystemSection = () => {
@@ -942,7 +920,6 @@ export function useSettings() {
 		deviceCapabilities,
 		// System
 		autostart,
-		toggleAutostart,
 		autoUpdate,
 		toggleAutoUpdate,
 		lowBatteryThreshold,
@@ -1032,8 +1009,6 @@ export function useSettings() {
 		toggleDockAdaptive,
 		dockWinNumberEnabled,
 		toggleDockWinNumber,
-		dockJournalEnabled,
-		toggleDockJournal,
 		dockSystemSectionEnabled,
 		toggleDockSystemSection,
 		dockSystemSectionSide,

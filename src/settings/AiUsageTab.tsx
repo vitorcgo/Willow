@@ -10,6 +10,7 @@ interface AiUsageTabProps {
 }
 
 export function AiUsageTab({ aiMode, setAiModeValue }: AiUsageTabProps) {
+	const enabled = aiMode !== "hidden";
 	const [providers, setProviders] = useState<ProviderUsage[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
@@ -28,8 +29,8 @@ export function AiUsageTab({ aiMode, setAiModeValue }: AiUsageTabProps) {
 	};
 
 	useEffect(() => {
-		refresh();
-	}, []);
+		if (enabled) refresh();
+	}, [enabled]);
 
 	return (
 		<>
@@ -37,74 +38,99 @@ export function AiUsageTab({ aiMode, setAiModeValue }: AiUsageTabProps) {
 			<div className="setting-group">
 				<SettingRow
 					icon={PanelRight}
-					label="Comportamento"
-					desc="Controle quando o painel lateral aparece"
-					divider={false}
+					label="Painel de uso de IA"
+					desc="Desligado por padrão; não consulta contas enquanto estiver inativo"
+					divider={!enabled}
 				>
-					<select
-						className="settings-select"
-						value={aiMode}
-						onChange={(event) => setAiModeValue(event.target.value)}
-					>
-						<option value="fixed">Fixo</option>
-						<option value="smart">Inteligente</option>
-						<option value="hidden">Oculto</option>
-					</select>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={enabled}
+							onChange={() => setAiModeValue(enabled ? "hidden" : "smart")}
+						/>
+						<span className="slider"></span>
+					</label>
 				</SettingRow>
-			</div>
 
-			<div className="setting-group-label">MONITORAMENTO</div>
-			<div className="setting-group">
-				<SettingRow
-					icon={RefreshCw}
-					label={loading ? "Atualizando..." : "Atualizar limites"}
-					desc="Consulta novamente as contas encontradas"
-					action
-					onClick={refresh}
-				/>
-				<SettingRow
-					icon={ShieldCheck}
-					label="Credenciais protegidas"
-					desc="O Willow apenas lê sessões locais e nunca mostra tokens na interface"
-					divider={false}
-				/>
-			</div>
-
-			<div className="setting-group-label setting-group-label--spaced">CONTAS ENCONTRADAS</div>
-			<div className="setting-group">
-				{error ? (
+				{enabled && (
 					<SettingRow
-						icon={ShieldCheck}
-						label="Consulta indisponível"
-						desc={error}
+						icon={PanelRight}
+						label="Comportamento"
+						desc="Controle quando o painel lateral aparece"
 						divider={false}
-					/>
-				) : providers.length === 0 ? (
-					<SettingRow
-						icon={ShieldCheck}
-						label="Nenhuma conta encontrada"
-						desc="Entre em um assistente compatível e atualize esta página"
-						divider={false}
-					/>
-				) : (
-					providers.map((provider, index) => (
-						<SettingRow
-							key={provider.id}
-							icon={ShieldCheck}
-							label={provider.name}
-							desc={
-								provider.note ||
-								(provider.windows.length ? "Limites disponíveis" : "Conta detectada")
-							}
-							divider={index !== providers.length - 1}
+					>
+						<select
+							className="settings-select"
+							value={aiMode}
+							onChange={(event) => setAiModeValue(event.target.value)}
 						>
-							<span className={`provider-state provider-state--${provider.status}`}>
-								{provider.working ? "Trabalhando" : provider.status === "ok" ? "Pronto" : "Atenção"}
-							</span>
-						</SettingRow>
-					))
+							<option value="smart">Inteligente</option>
+							<option value="fixed">Fixo</option>
+						</select>
+					</SettingRow>
 				)}
 			</div>
+
+			{enabled && (
+				<>
+					<div className="setting-group-label">MONITORAMENTO</div>
+					<div className="setting-group">
+						<SettingRow
+							icon={RefreshCw}
+							label={loading ? "Atualizando..." : "Atualizar limites"}
+							desc="Consulta novamente as contas encontradas"
+							action
+							onClick={refresh}
+						/>
+						<SettingRow
+							icon={ShieldCheck}
+							label="Credenciais protegidas"
+							desc="O Willow apenas lê sessões locais e nunca mostra tokens na interface"
+							divider={false}
+						/>
+					</div>
+
+					<div className="setting-group-label setting-group-label--spaced">CONTAS ENCONTRADAS</div>
+					<div className="setting-group">
+						{error ? (
+							<SettingRow
+								icon={ShieldCheck}
+								label="Consulta indisponível"
+								desc={error}
+								divider={false}
+							/>
+						) : providers.length === 0 ? (
+							<SettingRow
+								icon={ShieldCheck}
+								label="Nenhuma conta encontrada"
+								desc="Entre em um assistente compatível e atualize esta página"
+								divider={false}
+							/>
+						) : (
+							providers.map((provider, index) => (
+								<SettingRow
+									key={provider.id}
+									icon={ShieldCheck}
+									label={provider.name}
+									desc={
+										provider.note ||
+										(provider.windows.length ? "Limites disponíveis" : "Conta detectada")
+									}
+									divider={index !== providers.length - 1}
+								>
+									<span className={`provider-state provider-state--${provider.status}`}>
+										{provider.working
+											? "Trabalhando"
+											: provider.status === "ok"
+												? "Pronto"
+												: "Atenção"}
+									</span>
+								</SettingRow>
+							))
+						)}
+					</div>
+				</>
+			)}
 		</>
 	);
 }

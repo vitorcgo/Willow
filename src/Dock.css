@@ -242,9 +242,6 @@ body {
 	order: 2;
 }
 
-.dock-journal-launcher {
-	order: 2;
-}
 .dock-icon.journal-dock-button {
 	position: relative;
 	width: 46px;
@@ -341,8 +338,14 @@ body {
 	filter: drop-shadow(0 0 7px color-mix(in srgb, var(--willow-text, #fff) 24%, transparent));
 }
 
-.dock-reorder-container > .dock-icon-wrapper:not(.dock-settings-launcher) {
+.dock-reorder-container
+	> .dock-icon-wrapper:not(.dock-settings-launcher):not(.dock-journal-launcher) {
 	order: 3;
+}
+
+.dock-reorder-container > .dock-journal-launcher {
+	order: 4;
+	margin-left: 2px;
 }
 
 .dock-system-section {
@@ -359,7 +362,7 @@ body {
 }
 
 .dock-system-section-right {
-	order: 4;
+	order: 5;
 	padding-left: 12px;
 	border-left: 1px solid var(--willow-border, rgba(255, 255, 255, 0.16));
 }

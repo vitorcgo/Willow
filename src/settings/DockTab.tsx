@@ -30,8 +30,6 @@ interface DockTabProps {
 	toggleDockAdaptive: () => void;
 	dockWinNumberEnabled: boolean;
 	toggleDockWinNumber: () => void;
-	dockJournalEnabled: boolean;
-	toggleDockJournal: () => void;
 	dockSystemSectionEnabled: boolean;
 	toggleDockSystemSection: () => void;
 	dockSystemSectionSide: string;
@@ -57,8 +55,6 @@ export function DockTab({
 	toggleDockAdaptive,
 	dockWinNumberEnabled,
 	toggleDockWinNumber,
-	dockJournalEnabled,
-	toggleDockJournal,
 	dockSystemSectionEnabled,
 	toggleDockSystemSection,
 	dockSystemSectionSide,
@@ -129,24 +125,14 @@ export function DockTab({
 						<SettingRow
 							icon={BookOpenText}
 							label="Willow Journal"
-							desc="Mostra o atalho do diário local no dock"
+							desc="Atalho fixo à direita, junto à seção do sistema"
 						>
-							<div className="setting-inline-actions">
-								<button
-									className="settings-small-button"
-									onClick={() => invoke("open_journal_window")}
-								>
-									Abrir
-								</button>
-								<label className="toggle-switch">
-									<input
-										type="checkbox"
-										checked={dockJournalEnabled}
-										onChange={toggleDockJournal}
-									/>
-									<span className="slider"></span>
-								</label>
-							</div>
+							<button
+								className="settings-small-button"
+								onClick={() => invoke("open_journal_window")}
+							>
+								Abrir
+							</button>
 						</SettingRow>
 
 						<SettingRow

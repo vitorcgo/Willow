@@ -183,7 +183,6 @@ function SettingsApp() {
 					{activeTab === "general" && (
 						<GeneralTab
 							autostart={settings.autostart}
-							toggleAutostart={settings.toggleAutostart}
 							timeFormat24h={settings.timeFormat24h}
 							toggleTimeFormat24h={settings.toggleTimeFormat24h}
 							showUpdateIndicator={settings.showUpdateIndicator}
@@ -275,8 +274,6 @@ function SettingsApp() {
 							toggleDockAdaptive={settings.toggleDockAdaptive}
 							dockWinNumberEnabled={settings.dockWinNumberEnabled}
 							toggleDockWinNumber={settings.toggleDockWinNumber}
-							dockJournalEnabled={settings.dockJournalEnabled}
-							toggleDockJournal={settings.toggleDockJournal}
 							dockSystemSectionEnabled={settings.dockSystemSectionEnabled}
 							toggleDockSystemSection={settings.toggleDockSystemSection}
 							dockSystemSectionSide={settings.dockSystemSectionSide}

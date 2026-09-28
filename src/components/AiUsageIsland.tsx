@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { RefreshCw } from "lucide-react";
@@ -93,14 +93,14 @@ export function AiUsageIsland() {
 	const [cardOpen, setCardOpen] = useState(false);
 	const [islandOpen, setIslandOpen] = useState(false);
 	const [loading, setLoading] = useState(isTauriRuntime);
-	const [mode, setMode] = useState(() => localStorage.getItem("willow-ai-mode") || "smart");
+	const [mode, setMode] = useState(() => localStorage.getItem("willow-ai-mode") || "hidden");
 	const pillRef = useRef<HTMLDivElement>(null);
 	const cardRef = useRef<HTMLDivElement>(null);
 
 	useSettingsSync({ "willow-ai-mode": setMode });
 
-	const refresh = async () => {
-		if (!isTauriRuntime) return;
+	const refresh = useCallback(async () => {
+		if (!isTauriRuntime || mode === "hidden") return;
 		setLoading(true);
 		try {
 			setReadings(await invoke<ProviderUsage[]>("get_ai_usage"));
@@ -109,7 +109,7 @@ export function AiUsageIsland() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [isTauriRuntime, mode]);
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;
@@ -119,13 +119,21 @@ export function AiUsageIsland() {
 				if (saved) setMode(String(saved));
 			})
 			.catch(() => {});
-		const initial = window.setTimeout(refresh, 1500);
+	}, []);
+
+	useEffect(() => {
+		if (!isTauriRuntime || mode === "hidden") {
+			setLoading(false);
+			setReadings([]);
+			return;
+		}
+		const initial = window.setTimeout(refresh, 250);
 		const timer = window.setInterval(refresh, 5 * 60 * 1000);
 		return () => {
 			window.clearTimeout(initial);
 			window.clearInterval(timer);
 		};
-	}, []);
+	}, [isTauriRuntime, mode, refresh]);
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;

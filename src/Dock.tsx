@@ -95,9 +95,6 @@ const Dock = memo(function Dock() {
 	const [dockAdaptive, setDockAdaptive] = useState(
 		() => localStorage.getItem("willow-dock-adaptive") === "true"
 	);
-	const [dockJournalEnabled, setDockJournalEnabled] = useState(
-		() => localStorage.getItem("willow-dock-journal-enabled") !== "false"
-	);
 	const [journalSummary, setJournalSummary] = useState<JournalSummary | null>(null);
 	const [journalPulse, setJournalPulse] = useState(false);
 	const [dockSystemSectionEnabled, setDockSystemSectionEnabled] = useState(
@@ -291,8 +288,6 @@ const Dock = memo(function Dock() {
 
 			const adaptive = getVal("willow-dock-adaptive", "false");
 			setDockAdaptive(adaptive === "true");
-			setDockJournalEnabled(getVal("willow-dock-journal-enabled", "true") === "true");
-
 			setDockSystemSectionEnabled(getVal("willow-dock-system-section-enabled", "false") === "true");
 			setDockSystemSectionSide(
 				getVal("willow-dock-system-section-side", "right") === "left" ? "left" : "right"
@@ -349,7 +344,6 @@ const Dock = memo(function Dock() {
 		"willow-dock-preview-enabled": setDockPreviewEnabled,
 		"willow-dock-icon-only": setDockIconOnly,
 		"willow-dock-adaptive": setDockAdaptive,
-		"willow-dock-journal-enabled": setDockJournalEnabled,
 		"willow-dock-system-section-enabled": setDockSystemSectionEnabled,
 		"willow-dock-system-section-side": (value) =>
 			setDockSystemSectionSide(String(value) === "left" ? "left" : "right"),
@@ -883,9 +877,41 @@ const Dock = memo(function Dock() {
 		drag: { y: -10, scale: 1.1, opacity: 0.8 },
 		tap: { scale: 0.95 }
 	};
-	const journalProgress = journalSummary?.totalHabits
-		? Math.round((journalSummary.completedHabits / journalSummary.totalHabits) * 100)
-		: 0;
+	const journalLauncher = (
+		<motion.div
+			initial={{ opacity: 0, scale: 0 }}
+			animate={{ opacity: 1, scale: journalPulse ? [1, 1.18, 1] : 1 }}
+			transition={{ type: "spring", stiffness: 380, damping: 24 }}
+			className={`dock-icon-wrapper dock-journal-launcher ${journalPulse ? "is-pulsing" : ""}`}
+			onMouseEnter={() => setHoveredApp("willow-journal")}
+			onMouseLeave={() => setHoveredApp(null)}
+		>
+			{hoveredApp === "willow-journal" && (
+				<div className="tooltip journal-tooltip">
+					<strong>Willow Journal</strong>
+					<span>
+						{journalSummary
+							? `${journalSummary.completedHabits}/${journalSummary.totalHabits} hábitos hoje`
+							: "Organize seu mês"}
+					</span>
+				</div>
+			)}
+			<motion.button
+				className="dock-icon journal-dock-button"
+				variants={iconVariants}
+				initial="idle"
+				whileHover="hover"
+				whileTap="tap"
+				onClick={(event) => {
+					event.stopPropagation();
+					invoke("open_journal_window");
+				}}
+			>
+				<WillowJournalMark aria-label="Willow Journal" />
+			</motion.button>
+			{journalSummary?.hasDiary && <span className="journal-complete-dot" />}
+		</motion.div>
+	);
 
 	return (
 		<div className={`dock-container ${isDragging ? "dragging" : ""}`} onClick={closeMenu}>
@@ -1000,47 +1026,6 @@ const Dock = memo(function Dock() {
 										>
 											<WillowDuckMark className="willow-icon-img" title="Willow" />
 										</motion.div>
-									</motion.div>
-								)}
-
-								{dockJournalEnabled && (
-									<motion.div
-										initial={{ opacity: 0, scale: 0 }}
-										animate={{ opacity: 1, scale: journalPulse ? [1, 1.18, 1] : 1 }}
-										transition={{ type: "spring", stiffness: 380, damping: 24 }}
-										className={`dock-icon-wrapper dock-journal-launcher ${journalPulse ? "is-pulsing" : ""}`}
-										onMouseEnter={() => setHoveredApp("willow-journal")}
-										onMouseLeave={() => setHoveredApp(null)}
-									>
-										{hoveredApp === "willow-journal" && (
-											<div className="tooltip journal-tooltip">
-												<strong>Willow Journal</strong>
-												<span>
-													{journalSummary
-														? `${journalSummary.completedHabits}/${journalSummary.totalHabits} hábitos hoje`
-														: "Organize seu mês"}
-												</span>
-											</div>
-										)}
-										<motion.button
-											className="dock-icon journal-dock-button"
-											style={
-												{
-													"--journal-progress": `${journalProgress * 3.6}deg`
-												} as React.CSSProperties
-											}
-											variants={iconVariants}
-											initial="idle"
-											whileHover="hover"
-											whileTap="tap"
-											onClick={(event) => {
-												event.stopPropagation();
-												invoke("open_journal_window");
-											}}
-										>
-											<WillowJournalMark aria-label="Willow Journal" />
-										</motion.button>
-										{journalSummary?.hasDiary && <span className="journal-complete-dot" />}
 									</motion.div>
 								)}
 
@@ -1343,6 +1328,8 @@ const Dock = memo(function Dock() {
 										{app.is_running && <div className="active-indicator" />}
 									</motion.div>
 								))}
+
+								{journalLauncher}
 
 								{dockSystemSectionEnabled &&
 									dockSystemSectionSide === "right" &&

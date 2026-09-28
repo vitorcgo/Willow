@@ -11,6 +11,8 @@ mod utils;
 
 use std::sync::atomic::Ordering;
 use tauri::Manager;
+#[cfg(any(not(debug_assertions), test))]
+use tauri_plugin_autostart::ManagerExt;
 use windows::core::BOOL;
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
 use windows::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT, CTRL_C_EVENT};
@@ -193,6 +195,10 @@ fn main() {
             // invoke save_setting as soon as it loads, which happens before the
             // rest of this hook runs.
             crate::utils::init_settings_cache(app.handle());
+            #[cfg(any(not(debug_assertions), test))]
+            if let Err(error) = app.autolaunch().enable() {
+                eprintln!("Não foi possível ativar a inicialização automática: {error}");
+            }
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
             // (init_dock fires after a delay), so the flag must be removed first.
@@ -345,7 +351,7 @@ fn main() {
                     change_notch_mode(startup_handle.clone(), notch_mode).await;
 
                     let ai_mode = get_setting_str(&startup_handle, "willow-ai-mode")
-                        .unwrap_or_else(|| "smart".to_string());
+                        .unwrap_or_else(|| "hidden".to_string());
                     let _ = change_ai_mode(startup_handle.clone(), ai_mode);
 
                     let dock_enabled = get_setting_str(&startup_handle, "willow-dock-enabled")

@@ -13,7 +13,6 @@ import type { DeviceCapabilities } from "../deviceCapabilities";
 
 interface GeneralTabProps {
 	autostart: boolean;
-	toggleAutostart: () => void;
 	timeFormat24h: boolean;
 	toggleTimeFormat24h: () => void;
 	showUpdateIndicator: boolean;
@@ -27,7 +26,6 @@ interface GeneralTabProps {
 
 export function GeneralTab({
 	autostart,
-	toggleAutostart,
 	timeFormat24h,
 	toggleTimeFormat24h,
 	showUpdateIndicator,
@@ -42,9 +40,13 @@ export function GeneralTab({
 		<>
 			<div className="setting-group-label">SISTEMA</div>
 			<div className="setting-group">
-				<SettingRow icon={Power} label="Iniciar com o Windows" desc="Abre o Willow automaticamente">
+				<SettingRow
+					icon={Power}
+					label="Iniciar com o Windows"
+					desc="Sempre ativo para manter a ilha e o dock disponíveis"
+				>
 					<label className="toggle-switch">
-						<input type="checkbox" checked={autostart} onChange={toggleAutostart} />
+						<input type="checkbox" checked={autostart} disabled readOnly />
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
