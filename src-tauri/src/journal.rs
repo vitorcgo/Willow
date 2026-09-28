@@ -142,7 +142,7 @@ pub fn open_journal_window(app: AppHandle) -> Result<(), String> {
         let _ = window.unminimize();
         let _ = window.set_focus();
         let _ = window.eval(
-            "document.querySelector('.journal-ide')?.scrollTo({ top: 0, left: 0, behavior: 'instant' }); window.scrollTo(0, 0);",
+            "if (document.querySelector('.journal-load-error')) { window.location.reload(); } else { document.querySelector('.journal-ide')?.scrollTo({ top: 0, left: 0, behavior: 'instant' }); window.scrollTo(0, 0); }",
         );
         return Ok(());
     }

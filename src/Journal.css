@@ -98,14 +98,14 @@ button { color: inherit; }
 .today-code b { color: var(--j-pink); font-weight: 500; } .today-code em { color: var(--j-purple); font-style: normal; } .today-code q { color: var(--j-yellow); quotes: '"' '"'; }
 .today-code li:nth-child(n+2):nth-child(-n+5) { padding-left: 18px; color: var(--j-cyan); }
 .today-watermark { position: absolute; right: 16px; bottom: -26px; color: rgba(249,38,114,.09); font-size: clamp(72px, 8vw, 124px); font-weight: 700; line-height: 1; letter-spacing: -.12em; }
-.mood-row { position: absolute; right: 11px; bottom: 9px; z-index: 3; display: flex; gap: 5px; }
+.mood-row { position: absolute; left: 11px; right: auto; bottom: 9px; z-index: 3; display: flex; gap: 5px; }
 .mood-row button { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid var(--j-ln2); border-radius: 7px; background: rgba(6,6,7,.75); color: var(--j-faint); cursor: pointer; }
 .mood-row button:hover, .mood-row button.active { color: var(--mood-color); border-color: var(--mood-color); box-shadow: 0 0 12px color-mix(in srgb, var(--mood-color) 35%, transparent); }
 .mood-row .yellow { --mood-color: var(--j-yellow); } .mood-row .green { --mood-color: var(--j-green); } .mood-row .cyan { --mood-color: var(--j-cyan); } .mood-row .pink { --mood-color: var(--j-pink); }
 
 .calendar-card { padding-bottom: 10px; }
 .calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 14px 14px 7px; color: var(--j-purple); text-align: center; font-size: 11px; font-weight: 700; }
-.calendar-grid { flex: 1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 0 14px; }
+.calendar-grid { flex: 1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); gap: 8px; padding: 0 14px; }
 .calendar-grid > button { position: relative; min-height: 0; display: flex; align-items: flex-start; justify-content: flex-start; padding: 8px 10px; border: 1px solid var(--j-ln); border-radius: 10px; background: var(--j-bg3); color: var(--j-dim); cursor: pointer; }
 .calendar-grid > button:hover { border-color: var(--j-faint); color: var(--j-text); }
 .calendar-grid > button.selected { border-color: var(--j-cyan); color: var(--j-text); background: rgba(102,217,239,.09); box-shadow: inset 0 0 18px rgba(102,217,239,.05); }
@@ -194,9 +194,10 @@ button { color: inherit; }
 .journal-statusbar { height: 26px; display: flex; align-items: center; gap: 24px; padding: 0 14px; background: #060607; border-top: 1px solid var(--j-ln); color: var(--j-dim); font-size: 10px; }
 .journal-statusbar > span { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .journal-statusbar > span:first-child { align-self: stretch; min-width: 164px; margin-left: -14px; padding: 0 16px; background: var(--j-purple); color: #0b0b0d; font-weight: 700; }
-.journal-statusbar > span:first-child svg { width: 13px; height: 13px; } .journal-statusbar > span:nth-child(2) { color: var(--j-green); }
+.journal-statusbar > span:first-child img { width: 17px; height: 14px; object-fit: contain; image-rendering: pixelated; } .journal-statusbar > span:nth-child(2) { color: var(--j-green); }
 .journal-statusbar > span:nth-child(3) { color: var(--j-orange); } .journal-statusbar > span:nth-child(4) { color: var(--j-green); } .journal-statusbar > span:nth-child(5) { color: var(--j-purple); }
 .journal-statusbar > i { flex: 1; } .journal-statusbar > span:last-child { color: var(--j-green); }
+.journal-print-report { display: none; }
 
 @keyframes journal-pane-flash { 0%,100% { box-shadow: none; } 35% { box-shadow: 0 0 0 1px var(--j-cyan),0 0 26px rgba(102,217,239,.2); } }
 @media (max-width: 1250px) {
@@ -264,8 +265,45 @@ button { color: inherit; }
 	.journal-statusbar { gap: 12px; overflow: hidden; }
 	.journal-statusbar > span:nth-of-type(n+6) { display: none; }
 }
+@page { size: A4 portrait; margin: 12mm; }
 @media print {
-	.journal-titlebar,.journal-tabs,.journal-breadcrumb,.journal-statusbar { display: none !important; }
-	.journal-ide,.journal-middle,.journal-editor { display: block; height: auto; min-width: 0; overflow: visible; }
-	.journal-bento { height: 700px; } .journal-bottom-panel { height: 310px; }
+	*, *::before, *::after { box-shadow: none !important; text-shadow: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+	html, body, #root { width: auto; height: auto; overflow: visible; background: #fff !important; }
+	.journal-ide { width: auto; height: auto; overflow: visible; background: #fff; color: #151515; font-family: "Segoe UI", Arial, sans-serif; font-size: 9pt; user-select: text; }
+	.journal-titlebar, .journal-middle, .journal-statusbar { display: none !important; }
+	.journal-print-report { display: block; width: 100%; color: #151515; background: #fff; }
+	.print-report-header { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 7mm; border-bottom: 2px solid #151515; }
+	.print-report-header span { display: block; margin-bottom: 2mm; color: #555; font-size: 8pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+	.print-report-header h1 { margin: 0; font-size: 22pt; line-height: 1; }
+	.print-report-header p { margin: 0; color: #444; text-transform: capitalize; }
+	.print-report-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 6mm 0; }
+	.print-report-stats > div { padding: 3mm; border: 1px solid #bbb; border-radius: 3mm; }
+	.print-report-stats span { display: block; margin-bottom: 1mm; color: #666; font-size: 7pt; text-transform: uppercase; }
+	.print-report-stats strong { font-size: 12pt; }
+	.print-report-block { margin-bottom: 5mm; break-inside: avoid; page-break-inside: avoid; border: 1px solid #aaa; border-radius: 3mm; overflow: hidden; }
+	.print-report-block > h2 { margin: 0; padding: 2.5mm 3mm; border-bottom: 1px solid #aaa; background: #f1f1f1; font-size: 11pt; }
+	.print-report-block > h3 { margin: 3mm 3mm 1mm; color: #555; font-size: 8pt; text-transform: uppercase; }
+	.print-report-block > p { min-height: 10mm; margin: 0; padding: 2mm 3mm 3mm; white-space: pre-wrap; overflow-wrap: anywhere; }
+	.print-diary-text { min-height: 26mm !important; }
+	.print-calendar-weekdays, .print-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+	.print-calendar-weekdays { border-bottom: 1px solid #aaa; background: #fafafa; }
+	.print-calendar-weekdays span { padding: 2mm 0; text-align: center; font-size: 7pt; font-weight: 700; }
+	.print-calendar-grid > div { position: relative; min-height: 14mm; padding: 2mm; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+	.print-calendar-grid > div:nth-child(7n) { border-right: 0; }
+	.print-calendar-grid > div.selected { background: #e9f7fa; outline: 1px solid #333; outline-offset: -1px; }
+	.print-calendar-grid > div.empty { background: #fafafa; }
+	.print-calendar-grid i { position: absolute; right: 2mm; top: 2mm; width: 2mm; height: 2mm; border-radius: 50%; background: #222; }
+	.print-report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; align-items: start; }
+	.print-task-list { margin: 0; padding: 2mm 3mm 3mm; list-style: none; }
+	.print-task-list li { display: grid; grid-template-columns: 5mm 1fr auto; gap: 2mm; align-items: center; padding: 2mm 0; border-bottom: 1px solid #ddd; }
+	.print-task-list li:last-child { border-bottom: 0; }
+	.print-task-list b { font-weight: 500; }
+	.print-task-list small { color: #666; font-size: 7pt; }
+	.print-report-block table { width: 100%; border-collapse: collapse; }
+	.print-report-block th, .print-report-block td { padding: 2.2mm 3mm; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
+	.print-report-block thead th { background: #fafafa; color: #555; font-size: 7pt; text-transform: uppercase; }
+	.print-report-block tbody tr:last-child > * { border-bottom: 0; }
+	.print-habits-block td:first-child { width: 28%; font-weight: 600; }
+	.print-habits-block td:last-child { width: 16%; white-space: nowrap; }
+	.print-week-block th:first-child { width: 12%; }
 }

@@ -2541,19 +2541,19 @@ img {
 	gap: 9px;
 }
 .journal-island-logo {
-	width: 34px;
+	width: 39px;
 	height: 34px;
 	display: grid;
 	place-items: center;
 	flex: 0 0 auto;
 	color: var(--willow-text, #fff);
-	border-radius: 10px;
-	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.09));
-	box-shadow: 0 0 8px color-mix(in srgb, var(--willow-text, #fff) 18%, transparent);
+	background: transparent;
 }
-.journal-island-logo svg {
-	width: 19px;
-	height: 19px;
+.journal-island-logo img {
+	width: 37px;
+	height: 33px;
+	object-fit: contain;
+	image-rendering: pixelated;
 }
 .journal-island-head > div {
 	display: grid;

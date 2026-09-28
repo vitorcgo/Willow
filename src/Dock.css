@@ -245,34 +245,28 @@ body {
 .dock-journal-launcher {
 	order: 2;
 }
-.journal-dock-button {
+.dock-icon.journal-dock-button {
 	position: relative;
+	width: 46px;
+	height: 46px;
 	border: 0;
 	padding: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
 	cursor: pointer;
 	overflow: visible;
 }
 .journal-dock-button::before {
-	content: "";
-	position: absolute;
-	inset: -3px;
-	border-radius: 50%;
-	background: conic-gradient(
-		var(--willow-accent, #1697e8) var(--journal-progress, 0deg),
-		rgba(255, 255, 255, 0.1) 0
-	);
-	opacity: 0.9;
-	-webkit-mask: radial-gradient(circle, transparent 62%, #000 64%);
-	mask: radial-gradient(circle, transparent 62%, #000 64%);
+	content: none;
 }
-.journal-dock-button svg {
-	width: 43px;
-	height: 43px;
-	padding: 11px;
-	color: var(--willow-text, #fff);
-	border-radius: 13px;
-	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.09));
-	filter: drop-shadow(0 0 8px color-mix(in srgb, var(--willow-text, #fff) 22%, transparent));
+.dock-icon.journal-dock-button img {
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	object-fit: contain;
+	image-rendering: pixelated;
+	filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.16));
 }
 .dock-journal-launcher.is-pulsing .journal-dock-button {
 	box-shadow: 0 0 28px var(--willow-accent-glow, rgba(0, 122, 255, 0.55));
@@ -306,10 +300,10 @@ body {
 	font-size: 9px;
 	opacity: 0.65;
 }
-.dock-icon-only .journal-dock-button svg {
+.dock-icon-only .dock-icon.journal-dock-button img {
 	width: 48px;
 	height: 48px;
-	padding: 12px;
+	padding: 0;
 }
 
 .dock-settings-launcher .dock-icon {

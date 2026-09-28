@@ -2602,15 +2602,29 @@ unsafe extern "system" fn mouse_hook_proc(
                         let trigger_width = cached_setting_i32("willow-notch-trigger-width", 20);
                         let trigger_height =
                             cached_setting_i32("willow-notch-trigger-height", 4).clamp(2, 16);
+                        // A slightly wider and taller top-edge target makes the island easier
+                        // to summon over browser chrome. It remains click-through until the
+                        // deliberate dwell below completes, so regular tab clicks are untouched.
+                        let effective_trigger_width = if browser_protection {
+                            trigger_width.max(26)
+                        } else {
+                            trigger_width
+                        };
+                        let effective_trigger_height = if browser_protection {
+                            trigger_height.max(7)
+                        } else {
+                            trigger_height
+                        };
                         let trigger_bounds = notch_trigger_horizontal_bounds(
                             mon_x,
                             mon_w,
                             &trigger_position,
-                            trigger_width,
+                            effective_trigger_width,
                         );
                         let at_top_edge = trigger_bounds.is_some_and(|(left, right)| {
                             cursor.y >= mon_y
-                                && cursor.y <= mon_y + (trigger_height as f64 * scale) as i32
+                                && cursor.y
+                                    <= mon_y + (effective_trigger_height as f64 * scale) as i32
                                 && cursor.x >= left
                                 && cursor.x <= right
                         });
@@ -2625,16 +2639,16 @@ unsafe extern "system" fn mouse_hook_proc(
                                 let started = MH_BROWSER_TRIGGER_STARTED_MS.load(Ordering::Relaxed);
                                 if started == 0 {
                                     MH_BROWSER_TRIGGER_STARTED_MS.store(now, Ordering::Relaxed);
-                                } else if now - started >= 280 {
+                                } else if now - started >= 160 {
                                     MH_BROWSER_TRIGGER_ARMED_UNTIL_MS
-                                        .store(now + 1200, Ordering::Relaxed);
+                                        .store(now + 1800, Ordering::Relaxed);
                                 }
                             } else {
                                 MH_BROWSER_TRIGGER_STARTED_MS.store(0, Ordering::Relaxed);
                             }
                             if in_notch_hover {
                                 MH_BROWSER_TRIGGER_ARMED_UNTIL_MS
-                                    .store(now + 1200, Ordering::Relaxed);
+                                    .store(now + 1800, Ordering::Relaxed);
                             }
                             in_notch_hover
                                 || now < MH_BROWSER_TRIGGER_ARMED_UNTIL_MS.load(Ordering::Relaxed)

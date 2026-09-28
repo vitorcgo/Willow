@@ -21,11 +21,21 @@ import "./Settings.css";
 
 const Journal = lazy(() => import("./Journal"));
 
-class JournalErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-	state = { failed: false };
+class JournalErrorBoundary extends Component<
+	{ children: ReactNode },
+	{ failed: boolean; message: string }
+> {
+	state = { failed: false, message: "" };
 
-	static getDerivedStateFromError() {
-		return { failed: true };
+	static getDerivedStateFromError(error: unknown) {
+		return {
+			failed: true,
+			message: error instanceof Error ? error.message : String(error)
+		};
+	}
+
+	componentDidCatch(error: unknown, info: { componentStack?: string | null }) {
+		console.error("Willow Journal render failure", error, info.componentStack);
 	}
 
 	render() {
@@ -38,6 +48,7 @@ class JournalErrorBoundary extends Component<{ children: ReactNode }, { failed: 
 					<div>
 						<strong>O Journal não conseguiu carregar</strong>
 						<span>Feche esta tela e tente novamente.</span>
+						{this.state.message && <small>{this.state.message}</small>}
 					</div>
 					<button onClick={() => invoke("close_journal_window")} title="Fechar">
 						×

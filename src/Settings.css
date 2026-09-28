@@ -409,23 +409,23 @@ input:checked + .slider:before {
 	justify-content: center;
 	gap: 12px;
 	color: #eef7ff;
-	background: linear-gradient(145deg, #0b2435, #07131f);
-	border: 1px solid rgba(73, 174, 239, 0.5);
+	background: #070708;
+	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 22px;
 }
 .journal-loading-mark {
-	width: 46px;
-	height: 46px;
+	width: 58px;
+	height: 48px;
 	display: grid;
 	place-items: center;
 	color: var(--willow-text, #fff);
-	border-radius: 14px;
-	background: var(--willow-accent-soft, rgba(255, 255, 255, 0.08));
-	box-shadow: 0 0 12px color-mix(in srgb, var(--willow-text, #fff) 18%, transparent);
+	background: transparent;
 }
-.journal-loading-mark svg {
-	width: 25px;
-	height: 25px;
+.journal-loading-mark img {
+	width: 56px;
+	height: 46px;
+	object-fit: contain;
+	image-rendering: pixelated;
 }
 .journal-loading-shell button {
 	position: absolute;
@@ -446,6 +446,13 @@ input:checked + .slider:before {
 .journal-load-error span {
 	color: rgba(234, 245, 255, 0.58);
 	font-size: 11px;
+}
+.journal-load-error small {
+	max-width: min(560px, 70vw);
+	color: rgba(255, 255, 255, 0.42);
+	font-size: 10px;
+	line-height: 1.4;
+	word-break: break-word;
 }
 
 .weather-controls {

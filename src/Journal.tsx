@@ -165,6 +165,13 @@ export default function Journal() {
 
 	useEffect(() => initTheme(), []);
 	useEffect(() => {
+		const previousTitle = document.title;
+		document.title = "Willow Journal";
+		return () => {
+			document.title = previousTitle;
+		};
+	}, []);
+	useEffect(() => {
 		const resetScroll = () => document.querySelector<HTMLElement>(".journal-ide")?.scrollTo(0, 0);
 		resetScroll();
 		const frame = window.requestAnimationFrame(resetScroll);
@@ -218,7 +225,13 @@ export default function Journal() {
 				setSaveState("saved");
 			})
 			.catch((error) => {
+				if (sequence !== loadSequence.current) return;
 				console.error("Não foi possível carregar o Journal", error);
+				const next = emptyData();
+				setData(next);
+				dataRef.current = next;
+				setHistory([cloneData(next)]);
+				setHistoryIndex(0);
 				setSaveState("error");
 			});
 	}, [key, month]);
@@ -282,6 +295,13 @@ export default function Journal() {
 		}
 	};
 
+	const printJournal = async () => {
+		if (loadedMonthRef.current === key) {
+			await persist(key, dataRef.current).catch(() => undefined);
+		}
+		window.print();
+	};
+
 	const minimizeWindow = () => {
 		if (!isTauriRuntime) return;
 		getCurrentWebviewWindow().minimize().catch(() => undefined);
@@ -330,7 +350,13 @@ export default function Journal() {
 	const weekDayIndex = (selectedDate.getDay() + 6) % 7;
 	const selectedWeekDay = WEEK_DAYS[weekDayIndex];
 	const selectedWeekDayLong = selectedDate.toLocaleDateString("pt-BR", { weekday: "long" });
-	const selectedFile = `${String(selectedDay).padStart(2, "0")}-${selectedWeekDay.toLowerCase()}.md`;
+	const selectedDateLabel = selectedDate.toLocaleDateString("pt-BR", {
+		weekday: "long",
+		day: "2-digit",
+		month: "long",
+		year: "numeric"
+	});
+	const selectedFile = `${String(selectedDay).padStart(2, "0")}-${selectedWeekDay.toLowerCase()}`;
 	const diaryText = data.diary[dayKey] || "";
 	const diaryWords = diaryText.trim() ? diaryText.trim().split(/\s+/).length : 0;
 	const completedTasks = dayTasks.filter((task) => task.status === 2).length;
@@ -377,7 +403,7 @@ export default function Journal() {
 					<span className={`journal-save-state ${saveState}`}><i />{saveState === "saved" ? "Salvo" : saveState === "saving" ? "Salvando" : "Erro"}</span>
 					<button onClick={undo} disabled={historyIndex <= 0} title="Desfazer"><Undo2 size={15} /></button>
 					<button onClick={redo} disabled={historyIndex >= history.length - 1} title="Refazer"><Redo2 size={15} /></button>
-					<button onClick={() => window.print()} title="Imprimir"><Printer size={15} /></button>
+					<button onClick={printJournal} title="Imprimir relatório"><Printer size={15} /></button>
 					<span className="window-action-separator" />
 					<button onClick={minimizeWindow} title="Minimizar"><Minus size={16} /></button>
 					<button onClick={toggleMaximizeWindow} title="Maximizar ou restaurar"><Square size={13} /></button>
@@ -389,52 +415,55 @@ export default function Journal() {
 				<main className="journal-editor">
 					<div className="journal-tabs">
 						<div className="journal-tab active">
-							<button><FileText size={14} /><span>{selectedFile.slice(0, -3)}<i>.md</i></span></button>
+							<button><FileText size={14} /><span>{selectedFile}</span></button>
 						</div>
 					</div>
 					<div className="journal-breadcrumb"><span>willow-journal</span><b>›</b><span>{month.getFullYear()}</span><b>›</b><span>{monthName}</span><b>›</b><strong>{selectedFile}</strong></div>
 
 					<div className="journal-bento">
 						<section className="journal-card today-card">
-							<div className="card-title pink"><FileText size={14} /><strong>hoje.ts</strong></div>
+							<div className="card-title pink"><FileText size={14} /><strong>hoje</strong></div>
 							<div className="today-code"><ol><li><b>export const</b> hoje = &#123;</li><li>dia: <em>{selectedDay}</em>,</li><li>semana: <q>{selectedWeekDayLong}</q>,</li><li>mes: <q>{monthName}</q>,</li><li>humor: <q>{selectedMood || "não definido"}</q>,</li><li>&#125;;</li></ol><span className="today-watermark">{String(selectedDay).padStart(2, "0")}</span></div>
 							<div className="mood-row">{MOODS.map(({ id, icon: Icon, tone }) => <button className={`${tone} ${selectedMood === id ? "active" : ""}`} key={id} onClick={() => commit((draft) => { draft.mood[dayKey] = draft.mood[dayKey] === id ? "" : id; })} title={id}><Icon size={15} /></button>)}</div>
 						</section>
 
 						<section className="journal-card calendar-card">
-							<div className="card-title cyan"><CalendarDays size={14} /><strong>calendario.json</strong><span>// clique em um dia para editar</span></div>
+							<div className="card-title cyan"><CalendarDays size={14} /><strong>calendario</strong><span>// clique em um dia para editar</span></div>
 							<div className="calendar-weekdays">{WEEK_DAYS.map((day) => <span key={day}>{day}</span>)}</div>
 							<div className="calendar-grid">{cells.map((day, index) => day ? <button key={day} className={`${selectedDay === day ? "selected" : ""} ${day === now.getDate() && key === monthKey(now) ? "today" : ""}`} onClick={() => pickDay(day)}><strong>{String(day).padStart(2, "0")}</strong>{hasDayData(day) && <i />}</button> : <div key={`empty-${index}`} />)}</div>
 							<label className="quick-note"><b>&gt;</b><input value={data.days[dayKey] || ""} onChange={(event) => commit((draft) => { draft.days[dayKey] = event.target.value; })} placeholder={`nota rápida do dia ${selectedDay}...`} /></label>
 						</section>
 
 						<section className="journal-card diary-card">
-							<div className="card-title yellow"><BookOpenText size={14} /><strong>diario.md</strong><span>{diaryWords} {diaryWords === 1 ? "palavra" : "palavras"}</span></div>
+							<div className="card-title yellow"><BookOpenText size={14} /><strong>diario</strong><span>{diaryWords} {diaryWords === 1 ? "palavra" : "palavras"}</span></div>
 							<div className="diary-editor"><div className="line-numbers">{Array.from({ length: 7 }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={diaryText} onChange={(event) => commit((draft) => { draft.diary[dayKey] = event.target.value; })} placeholder="// como foi o dia? escreva livremente..." /></div>
 							<select className="diary-key" value={data.diaryKeys[dayKey] || "N Nota"} onChange={(event) => commit((draft) => { draft.diaryKeys[dayKey] = event.target.value; })}>{KEYS.map((item) => <option key={item}>{item}</option>)}</select>
 						</section>
 
 						<section className="journal-card sleep-card">
-							<div className="card-title purple"><MoonStar size={14} /><strong>sono.json</strong><span>// média {sleepAverage.toFixed(1)}h · {Object.values(data.sleep).filter(Boolean).length} noites</span></div>
+							<div className="card-title purple"><MoonStar size={14} /><strong>sono</strong><span>// média {sleepAverage.toFixed(1)}h · {Object.values(data.sleep).filter(Boolean).length} noites</span></div>
 							<div className="sleep-top"><strong>{Number(data.sleep[dayKey] || 0).toFixed(1)}<small>h</small></strong><div><button onClick={() => commit((draft) => { draft.sleep[dayKey] = Math.max(0, Number(draft.sleep[dayKey] || 0) - .5); })}><Minus size={14} /></button><button onClick={() => commit((draft) => { draft.sleep[dayKey] = Math.min(12, Number(draft.sleep[dayKey] || 0) + .5); })}><Plus size={14} /></button></div></div>
 							<div className="sleep-bars">{Array.from({ length: count }, (_, index) => { const day = index + 1; const hours = Number(data.sleep[String(day)] || 0); return <button key={day} className={selectedDay === day ? "active" : ""} onClick={() => pickDay(day)} title={`Dia ${day}: ${hours}h`}><i style={{ height: `${Math.max(3, hours / 12 * 100)}%` }} /></button>; })}</div>
 							<div className="sleep-axis"><span>01</span><span>15</span><span>{count}</span></div>
 						</section>
 
 						<section className="journal-card tasks-card">
-							<div className="card-title orange"><ListTodo size={14} /><strong>tarefas.todo</strong><span>{completedTasks}/{dayTasks.length} concluídas</span></div>
+							<div className="card-title orange"><ListTodo size={14} /><strong>tarefas</strong><span>{completedTasks}/{dayTasks.length} concluídas</span></div>
 							<div className="task-add"><b>+</b><input value={newTask} onChange={(event) => setNewTask(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addTask(); }} placeholder="nova tarefa e Enter..." /><button onClick={addTask}>add</button></div>
-							<div className="task-list">{dayTasks.length === 0 && <p>// nenhuma tarefa neste dia<br />// adicione uma e clique no ícone para mudar o status.</p>}{dayTasks.map((task) => <div className={`task-row status-${task.status}`} key={task.id}><button className="task-status" onClick={() => commit((draft) => { const current = draft.tasks[dayKey].find((item) => item.id === task.id); if (current) current.status = (current.status + 1) % TASK_STATES.length; })} title={TASK_STATES[task.status]}>{taskStatusIcon(task.status)}</button><span>{task.text}</span><small>{TASK_STATES[task.status]}</small><button className="task-delete" onClick={() => commit((draft) => { draft.tasks[dayKey] = draft.tasks[dayKey].filter((item) => item.id !== task.id); })}><X size={12} /></button></div>)}</div>
+							<div className="task-list">{dayTasks.length === 0 && <p>// nenhuma tarefa neste dia<br />// adicione uma e clique no ícone para mudar o status.</p>}{dayTasks.map((task) => {
+								const status = Number.isInteger(task.status) && task.status >= 0 && task.status < TASK_STATES.length ? task.status : 0;
+								return <div className={`task-row status-${status}`} key={task.id}><button className="task-status" onClick={() => commit((draft) => { const current = draft.tasks[dayKey].find((item) => item.id === task.id); if (current) { const currentStatus = Number.isInteger(current.status) && current.status >= 0 && current.status < TASK_STATES.length ? current.status : 0; current.status = (currentStatus + 1) % TASK_STATES.length; } })} title={TASK_STATES[status]}>{taskStatusIcon(status)}</button><span>{task.text}</span><small>{TASK_STATES[status]}</small><button className="task-delete" onClick={() => commit((draft) => { draft.tasks[dayKey] = draft.tasks[dayKey].filter((item) => item.id !== task.id); })}><X size={12} /></button></div>;
+							})}</div>
 							<div className="task-legend">{TASK_STATES.map((state, index) => <span className={`status-${index}`} key={state}>{taskStatusIcon(index)} {state.toLowerCase()}</span>)}</div>
 						</section>
 
 						<section className="journal-card ring-card">
-							<div className="card-title green"><ClipboardCheck size={14} /><strong>habitos.hoje</strong><span>// dia {selectedDay}</span></div>
+							<div className="card-title green"><ClipboardCheck size={14} /><strong>habitos</strong><span>// dia {selectedDay}</span></div>
 							<div className="ring-content"><div className="habit-ring" style={{ "--progress": `${data.habits.length ? completedToday / data.habits.length * 360 : 0}deg` } as React.CSSProperties}><span /></div><div><strong>{completedToday}/{data.habits.length}</strong><span>hábitos feitos no dia</span></div></div>
 						</section>
 
 						<section className="journal-card progress-card">
-							<div className="card-title cyan"><ListTodo size={14} /><strong>progresso.log</strong><span>// dias concluídos no mês</span></div>
+							<div className="card-title cyan"><ListTodo size={14} /><strong>progresso</strong><span>// dias concluídos no mês</span></div>
 							<div className="progress-list">{data.habits.slice(0, 3).map((habit, index) => { const done = Object.values(habit.days).filter(Boolean).length; return <div key={habit.id} className={`tone-${index}`}><span>{habit.name}</span><i><b style={{ width: `${done / count * 100}%` }} /></i><small>{done}/{count}</small></div>; })}</div>
 						</section>
 					</div>
@@ -448,6 +477,59 @@ export default function Journal() {
 					</section>
 				</main>
 			</div>
+
+			<section className="journal-print-report">
+				<header className="print-report-header">
+					<div>
+						<span>Willow Journal</span>
+						<h1>{monthLabel}</h1>
+					</div>
+					<p>{selectedDateLabel}</p>
+				</header>
+
+				<div className="print-report-stats">
+					<div><span>Humor</span><strong>{selectedMood || "Não definido"}</strong></div>
+					<div><span>Sono</span><strong>{Number(data.sleep[dayKey] || 0).toFixed(1)}h</strong></div>
+					<div><span>Hábitos</span><strong>{completedToday}/{data.habits.length}</strong></div>
+					<div><span>Tarefas</span><strong>{completedTasks}/{dayTasks.length}</strong></div>
+				</div>
+
+				<section className="print-report-block print-calendar-block">
+					<h2>Calendário mensal</h2>
+					<div className="print-calendar-weekdays">{WEEK_DAYS.map((day) => <span key={day}>{day}</span>)}</div>
+					<div className="print-calendar-grid">{cells.map((day, index) => day ? <div className={selectedDay === day ? "selected" : ""} key={day}><strong>{String(day).padStart(2, "0")}</strong>{hasDayData(day) && <i />}</div> : <div className="empty" key={`print-empty-${index}`} />)}</div>
+				</section>
+
+				<div className="print-report-columns">
+					<section className="print-report-block">
+						<h2>Notas do dia</h2>
+						<h3>Nota rápida</h3>
+						<p>{data.days[dayKey]?.trim() || "Nenhuma nota rápida."}</p>
+						<h3>Diário</h3>
+						<p className="print-diary-text">{diaryText.trim() || "Nenhuma anotação no diário."}</p>
+					</section>
+					<section className="print-report-block">
+						<h2>Tarefas</h2>
+						{dayTasks.length ? <ul className="print-task-list">{dayTasks.map((task) => {
+							const status = Number.isInteger(task.status) && task.status >= 0 && task.status < TASK_STATES.length ? task.status : 0;
+							return <li key={task.id}><span>{status === 2 ? "✓" : "○"}</span><b>{task.text}</b><small>{TASK_STATES[status]}</small></li>;
+						})}</ul> : <p>Nenhuma tarefa neste dia.</p>}
+					</section>
+				</div>
+
+				<section className="print-report-block print-habits-block">
+					<h2>Hábitos do mês</h2>
+					{data.habits.length ? <table><thead><tr><th>Hábito</th><th>Dias concluídos</th><th>Total</th></tr></thead><tbody>{data.habits.map((habit) => {
+						const completedDays = Object.entries(habit.days).filter(([, done]) => done).map(([day]) => String(day).padStart(2, "0")).sort((a, b) => Number(a) - Number(b));
+						return <tr key={habit.id}><td>{habit.name}</td><td>{completedDays.join(", ") || "—"}</td><td>{completedDays.length}/{count}</td></tr>;
+					})}</tbody></table> : <p>Nenhum hábito cadastrado neste mês.</p>}
+				</section>
+
+				<section className="print-report-block print-week-block">
+					<h2>Anotações da semana</h2>
+					<table><thead><tr><th>Dia</th><th>Manhã</th><th>Tarde</th><th>Noite</th></tr></thead><tbody>{WEEK_DAYS.map((day) => <tr key={day}><th>{day}</th><td>{data.week[day]?.morning || "—"}</td><td>{data.week[day]?.afternoon || "—"}</td><td>{data.week[day]?.night || "—"}</td></tr>)}</tbody></table>
+				</section>
+			</section>
 
 			<footer className="journal-statusbar"><span><WillowJournalMark /> willow-journal</span><span><GitBranch size={12} /> main*</span><span>tarefas {completedTasks}/{dayTasks.length}</span><span>hábitos {completedToday}/{data.habits.length}</span><span>sono {Number(data.sleep[dayKey] || 0).toFixed(1)}h</span><i /><span>Ln {selectedDay}, Col 1</span><span>UTF-8</span><span>Markdown</span><span>{saveState === "saved" ? "Salvo" : saveState === "saving" ? "Salvando" : "Erro"}</span></footer>
 		</div>
