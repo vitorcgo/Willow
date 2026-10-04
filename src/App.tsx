@@ -43,21 +43,15 @@ import {
 	RefreshCw,
 	Search,
 	Thermometer,
-	ArrowLeft,
-	BookOpenCheck,
-	MoonStar,
-	StickyNote
+	ArrowLeft
 } from "lucide-react";
 import { DEFAULT_DEVICE_CAPABILITIES, type DeviceCapabilities } from "./deviceCapabilities";
-import { WillowJournalMark } from "./components/WillowMarks";
 
-interface JournalSummary {
-	completedHabits: number;
-	totalHabits: number;
-	hasDiary: boolean;
-	sleepHours: number;
-	noteCount: number;
-}
+// Older versions could save a "journal" widget, which no longer exists.
+const dropRetiredWidgets = (config: WidgetConfig): WidgetConfig => ({
+	left: config.left.filter((id) => id !== "journal"),
+	right: config.right.filter((id) => id !== "journal")
+});
 
 // Pomodoro timer limit.
 const MAX_TIMER_SECONDS = 180 * 60;
@@ -479,7 +473,6 @@ function App() {
 	const [deviceCapabilities, setDeviceCapabilities] = useState<DeviceCapabilities>(
 		DEFAULT_DEVICE_CAPABILITIES
 	);
-	const [journalSummary, setJournalSummary] = useState<JournalSummary | null>(null);
 
 	const [batteryLevel, setBatteryLevel] = useState(100);
 	const [isCharging, setIsCharging] = useState(false);
@@ -511,15 +504,6 @@ function App() {
 		invoke<DeviceCapabilities>("get_device_capabilities")
 			.then(setDeviceCapabilities)
 			.catch(() => {});
-		invoke<JournalSummary>("journal_get_today_summary")
-			.then(setJournalSummary)
-			.catch(() => {});
-		const summaryListener = listen<JournalSummary>("journal-summary-changed", (event) =>
-			setJournalSummary(event.payload)
-		);
-		return () => {
-			summaryListener.then((remove) => remove());
-		};
 	}, []);
 
 	useEffect(() => {
@@ -1017,7 +1001,7 @@ function App() {
 					try {
 						const parsed = JSON.parse(widgetsVal);
 						if (parsed && Array.isArray(parsed.left) && Array.isArray(parsed.right)) {
-							setStatusWidgets(parsed);
+							setStatusWidgets(dropRetiredWidgets(parsed));
 						}
 					} catch {}
 				}
@@ -1089,7 +1073,7 @@ function App() {
 				try {
 					const parsed = JSON.parse(value);
 					if (parsed && Array.isArray(parsed.left) && Array.isArray(parsed.right)) {
-						setStatusWidgets(parsed);
+						setStatusWidgets(dropRetiredWidgets(parsed));
 					}
 				} catch {}
 			},
@@ -1141,7 +1125,6 @@ function App() {
 		| "command-center"
 		| "tray"
 		| "weather"
-		| "journal"
 		| "status";
 	const [willowMode, setWillowMode] = useState<WillowMode>("status");
 	const changeMediaLayout = useCallback((layout: "classic" | "compact") => {
@@ -1210,28 +1193,6 @@ function App() {
 		setIsHovered(true);
 		setWillowMode((current) => (current === "weather" ? "status" : "weather"));
 	};
-	const toggleJournalPanel = (event: React.MouseEvent) => {
-		event.stopPropagation();
-		setIsHovered(true);
-		setWillowMode((current) => (current === "journal" ? "status" : "journal"));
-	};
-
-	useEffect(() => {
-		let closeTimer = 0;
-		const listener = listen("journal-activity", () => {
-			window.clearTimeout(closeTimer);
-			setIsHovered(true);
-			setWillowMode("journal");
-			closeTimer = window.setTimeout(() => {
-				setWillowMode((current) => (current === "journal" ? "status" : current));
-				setIsHovered(false);
-			}, 1800);
-		});
-		return () => {
-			listener.then((remove) => remove());
-			window.clearTimeout(closeTimer);
-		};
-	}, []);
 	const closeExpandedMusic = (event: React.MouseEvent) => {
 		event.stopPropagation();
 		manualMusicRef.current = false;
@@ -1259,8 +1220,8 @@ function App() {
 		// Music shifts position based on playing state.
 		const musicBeforeStatus = isPlaying && mediaInfo.has_media && settingsMusicModeEnabled;
 		const modes: WillowMode[] = musicBeforeStatus
-			? ["command-center", "tray", "music", "status", "journal", "weather", "calendar"]
-			: ["command-center", "tray", "status", "journal", "weather", "music", "calendar"];
+			? ["command-center", "tray", "music", "status", "weather", "calendar"]
+			: ["command-center", "tray", "status", "weather", "music", "calendar"];
 		const availableModes = modes.filter((m) => {
 			if (m === "music" && (!settingsMusicModeEnabled || !mediaInfo.has_media)) return false;
 			if (m === "calendar" && !settingsCalendarEnabled) return false;
@@ -2016,23 +1977,6 @@ function App() {
 						</span>
 					</div>
 				);
-			case "journal":
-				return (
-					<button
-						type="button"
-						className="passive-feature weather-feature-button"
-						key="journal"
-						title="Abrir resumo do Willow Journal"
-						onClick={toggleJournalPanel}
-					>
-						<BookOpenCheck size={12} strokeWidth={2.2} />
-						<span className="label">
-							{journalSummary
-								? `${journalSummary.completedHabits}/${journalSummary.totalHabits}`
-								: "Journal"}
-						</span>
-					</button>
-				);
 			default:
 				return null;
 		}
@@ -2054,7 +1998,6 @@ function App() {
 		).length;
 		if (isCalendarMode) return 480;
 		if (willowMode === "weather" && isHovered) return 480;
-		if (willowMode === "journal" && isHovered) return 390;
 		if (willowMode === "command-center" && isHovered) return Math.min(350 + totalWidgets * 36, 540);
 		if (willowMode === "tray" && isHovered) return Math.min(390 + totalWidgets * 28, 540);
 		if (willowMode === "status" && isHovered) {
@@ -2084,7 +2027,6 @@ function App() {
 		// Sized to the calendar's week-row count plus the timer's fixed content.
 		if (willowMode === "calendar") return calendarMonthRows >= 6 ? 305 : 273;
 		if (willowMode === "weather") return isHovered ? 258 : 36;
-		if (willowMode === "journal") return isHovered ? 184 : 36;
 		if (willowMode === "command-center") return isHovered ? 230 : 36;
 		if (willowMode === "tray") return isHovered ? 286 : 36;
 		if (willowMode === "status") return 36;
@@ -2999,68 +2941,6 @@ function App() {
 														<span className="cc-classic-percentage">{currentBrightness}%</span>
 													</div>
 												)}
-											</div>
-										</motion.div>
-									)}
-								</AnimatePresence>
-
-								{/* Willow Journal summary */}
-								<AnimatePresence>
-									{willowMode === "journal" && (
-										<motion.div
-											className="journal-island-content"
-											onClick={(event) => event.stopPropagation()}
-											initial={{ opacity: 0, y: -8, scale: 0.97 }}
-											animate={{ opacity: 1, y: 0, scale: 1 }}
-											exit={{ opacity: 0, y: -6, scale: 0.97 }}
-											transition={{ type: "spring", stiffness: 430, damping: 32 }}
-										>
-											<div className="journal-island-head">
-												<span className="journal-island-logo">
-													<WillowJournalMark />
-												</span>
-												<div>
-													<strong>Willow Journal</strong>
-													<span>Resumo de hoje</span>
-												</div>
-												<button
-													onPointerDown={(event) => event.stopPropagation()}
-													onClick={(event) => {
-														event.stopPropagation();
-														invoke("open_journal_window").catch((error) =>
-															console.error("Não foi possível abrir o Willow Journal", error)
-														);
-													}}
-												>
-													Abrir
-												</button>
-											</div>
-											<div className="journal-island-stats">
-												<div>
-													<BookOpenCheck size={15} />
-													<strong>
-														{journalSummary?.completedHabits || 0}/
-														{journalSummary?.totalHabits || 0}
-													</strong>
-													<span>hábitos</span>
-												</div>
-												<div>
-													<MoonStar size={15} />
-													<strong>{(journalSummary?.sleepHours || 0).toFixed(1)}h</strong>
-													<span>sono</span>
-												</div>
-												<div>
-													<StickyNote size={15} />
-													<strong>{journalSummary?.noteCount || 0}</strong>
-													<span>notas</span>
-												</div>
-											</div>
-											<div className="journal-island-progress">
-												<i
-													style={{
-														width: `${journalSummary?.totalHabits ? (journalSummary.completedHabits / journalSummary.totalHabits) * 100 : 0}%`
-													}}
-												/>
 											</div>
 										</motion.div>
 									)}

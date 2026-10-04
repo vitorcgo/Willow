@@ -2,7 +2,6 @@
 
 mod ai_usage;
 mod commands;
-mod journal;
 mod services;
 mod state;
 mod types;
@@ -183,12 +182,7 @@ fn main() {
             write_settings_to_path,
             updater::check_for_updates,
             updater::install_update,
-            updater::get_update_state,
-            journal::open_journal_window,
-            journal::close_journal_window,
-            journal::journal_load_month,
-            journal::journal_save_month,
-            journal::journal_get_today_summary
+            updater::get_update_state
         ])
         .setup(|app| {
             init_taskbar_marker(app.handle());

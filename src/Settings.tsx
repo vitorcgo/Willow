@@ -1,11 +1,9 @@
-import { StrictMode, useState, useEffect, Component, type ReactNode } from "react";
+import { StrictMode, useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { X, Settings, Palette, PanelTop, Monitor, Layers, Info, Bot } from "lucide-react";
-import { WillowJournalMark } from "./components/WillowMarks";
-import Journal from "./Journal";
 import {
 	useSettings,
 	GeneralTab,
@@ -20,48 +18,8 @@ import type { SettingsTab } from "./settings/index";
 import { initTheme } from "./theme";
 import "./Settings.css";
 
-class JournalErrorBoundary extends Component<
-	{ children: ReactNode },
-	{ failed: boolean; message: string }
-> {
-	state = { failed: false, message: "" };
-
-	static getDerivedStateFromError(error: unknown) {
-		return {
-			failed: true,
-			message: error instanceof Error ? error.message : String(error)
-		};
-	}
-
-	componentDidCatch(error: unknown, info: { componentStack?: string | null }) {
-		console.error("Willow Journal render failure", error, info.componentStack);
-	}
-
-	render() {
-		if (this.state.failed) {
-			return (
-				<div className="journal-loading-shell journal-load-error" data-tauri-drag-region>
-					<span className="journal-loading-mark">
-						<WillowJournalMark />
-					</span>
-					<div>
-						<strong>O Journal não conseguiu carregar</strong>
-						<span>Feche esta tela e tente novamente.</span>
-						{this.state.message && <small>{this.state.message}</small>}
-					</div>
-					<button onClick={() => invoke("close_journal_window")} title="Fechar">
-						×
-					</button>
-				</div>
-			);
-		}
-		return this.props.children;
-	}
-}
-
 const isTauriRuntime = "__TAURI_INTERNALS__" in window;
 const appWindow = isTauriRuntime ? getCurrentWebviewWindow() : null;
-const isJournalWindow = appWindow?.label === "journal";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 	{ id: "general", label: "Geral", icon: Settings },
@@ -76,9 +34,6 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
 function SettingsApp() {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 	const [openingKey, setOpeningKey] = useState(0);
-	const [journalWorkspace, setJournalWorkspace] = useState(
-		() => isJournalWindow || new URLSearchParams(window.location.search).get("journal") === "1"
-	);
 	const settings = useSettings();
 
 	useEffect(() => {
@@ -87,12 +42,7 @@ function SettingsApp() {
 
 	useEffect(() => {
 		if (!isTauriRuntime) return;
-		if (isJournalWindow) {
-			setJournalWorkspace(true);
-			return;
-		}
 		const unlisten = listen("settings-opened", () => {
-			setJournalWorkspace(false);
 			setOpeningKey((value) => value + 1);
 		});
 		return () => {
@@ -110,12 +60,11 @@ function SettingsApp() {
 	}, []);
 
 	useEffect(() => {
-		if (journalWorkspace) return;
 		invoke("resize_settings_window", {
 			width: 620 * settings.scale,
 			height: 480 * settings.scale
 		}).catch(console.error);
-	}, [settings.scale, journalWorkspace]);
+	}, [settings.scale]);
 
 	const handleClose = async (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -128,14 +77,6 @@ function SettingsApp() {
 			await appWindow.hide();
 		} catch {}
 	};
-
-	if (journalWorkspace) {
-		return (
-			<JournalErrorBoundary>
-				<Journal />
-			</JournalErrorBoundary>
-		);
-	}
 
 	return (
 		<div key={openingKey} className="settings-container" style={{ zoom: settings.scale }}>

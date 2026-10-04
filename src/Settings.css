@@ -401,60 +401,6 @@ input:checked + .slider:before {
 	border-color: var(--willow-accent-muted, rgba(26, 151, 232, 0.32));
 }
 
-.journal-loading-shell {
-	width: 100vw;
-	height: 100vh;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 12px;
-	color: #eef7ff;
-	background: #070708;
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	border-radius: 22px;
-}
-.journal-loading-mark {
-	width: 58px;
-	height: 48px;
-	display: grid;
-	place-items: center;
-	color: var(--willow-text, #fff);
-	background: transparent;
-}
-.journal-loading-mark img {
-	width: 56px;
-	height: 46px;
-	object-fit: contain;
-	image-rendering: pixelated;
-}
-.journal-loading-shell button {
-	position: absolute;
-	top: 14px;
-	right: 14px;
-	width: 34px;
-	height: 34px;
-	color: #fff;
-	background: rgba(255, 255, 255, 0.08);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	border-radius: 50%;
-	cursor: pointer;
-}
-.journal-load-error > div {
-	display: grid;
-	gap: 3px;
-}
-.journal-load-error span {
-	color: rgba(234, 245, 255, 0.58);
-	font-size: 11px;
-}
-.journal-load-error small {
-	max-width: min(560px, 70vw);
-	color: rgba(255, 255, 255, 0.42);
-	font-size: 10px;
-	line-height: 1.4;
-	word-break: break-word;
-}
-
 .weather-controls {
 	display: flex;
 	align-items: center;

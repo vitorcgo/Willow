@@ -11,10 +11,8 @@ import {
 	Images,
 	Trash2,
 	MonitorDown,
-	MoveHorizontal,
-	BookOpenText
+	MoveHorizontal
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import type { ComponentType } from "react";
 import { SettingRow } from "./SettingRow";
 
@@ -117,25 +115,11 @@ export function DockTab({
 							icon={Circle}
 							label="Somente ícones"
 							desc="Remove o fundo e o espaçamento dos ícones"
-							divider={false}
 						>
 							<label className="toggle-switch">
 								<input type="checkbox" checked={dockIconOnly} onChange={toggleDockIconOnly} />
 								<span className="slider"></span>
 							</label>
-						</SettingRow>
-
-						<SettingRow
-							icon={BookOpenText}
-							label="Willow Journal"
-							desc="Atalho fixo à direita, junto à seção do sistema"
-						>
-							<button
-								className="settings-small-button"
-								onClick={() => invoke("open_journal_window")}
-							>
-								Abrir
-							</button>
 						</SettingRow>
 
 						<SettingRow

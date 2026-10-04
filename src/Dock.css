@@ -242,67 +242,6 @@ body {
 	order: 2;
 }
 
-.dock-icon.journal-dock-button {
-	position: relative;
-	width: 46px;
-	height: 46px;
-	border: 0;
-	padding: 0;
-	border-radius: 0;
-	background: transparent;
-	box-shadow: none;
-	cursor: pointer;
-	overflow: visible;
-}
-.journal-dock-button::before {
-	content: none;
-}
-.dock-icon.journal-dock-button img {
-	width: 44px;
-	height: 44px;
-	padding: 0;
-	object-fit: contain;
-	image-rendering: pixelated;
-	filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.16));
-}
-.dock-journal-launcher.is-pulsing .journal-dock-button {
-	box-shadow: 0 0 28px var(--willow-accent-glow, rgba(0, 122, 255, 0.55));
-}
-.journal-complete-dot {
-	position: absolute;
-	right: 0;
-	bottom: -2px;
-	width: 7px;
-	height: 7px;
-	border: 1.5px solid var(--willow-bg, #07111a);
-	border-radius: 50%;
-	background: #69e69b;
-	box-shadow: 0 0 8px #69e69b;
-}
-.journal-tooltip {
-	min-width: 132px;
-	top: auto;
-	bottom: calc(100% + 12px);
-	display: grid;
-	gap: 2px;
-	padding: 7px 10px;
-	text-align: left;
-	transform-origin: bottom center;
-	z-index: 1000;
-}
-.journal-tooltip strong {
-	font-size: 11px;
-}
-.journal-tooltip span {
-	font-size: 9px;
-	opacity: 0.65;
-}
-.dock-icon-only .dock-icon.journal-dock-button img {
-	width: 48px;
-	height: 48px;
-	padding: 0;
-}
-
 .dock-settings-launcher .dock-icon {
 	position: relative;
 	width: 42px;
@@ -338,14 +277,8 @@ body {
 	filter: drop-shadow(0 0 7px color-mix(in srgb, var(--willow-text, #fff) 24%, transparent));
 }
 
-.dock-reorder-container
-	> .dock-icon-wrapper:not(.dock-settings-launcher):not(.dock-journal-launcher) {
+.dock-reorder-container > .dock-icon-wrapper:not(.dock-settings-launcher) {
 	order: 3;
-}
-
-.dock-reorder-container > .dock-journal-launcher {
-	order: 4;
-	margin-left: 2px;
 }
 
 .dock-system-section {

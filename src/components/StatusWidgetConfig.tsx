@@ -28,8 +28,7 @@ import {
 	X,
 	ArrowLeftRight,
 	ChevronUp,
-	ChevronDown,
-	BookOpenCheck
+	ChevronDown
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
@@ -51,13 +50,19 @@ const WIDGET_DEFS: WidgetDef[] = [
 	{ id: "cpu", label: "CPU", icon: Cpu, color: "#f97316" },
 	{ id: "ram", label: "RAM", icon: MemoryStick, color: "#a78bfa" },
 	{ id: "disk", label: "Disco", icon: HardDrive, color: "#38bdf8" },
-	{ id: "net", label: "Rede", icon: ArrowUpDown, color: "#2dd4bf" },
-	{ id: "journal", label: "Journal", icon: BookOpenCheck, color: "#ffffff" }
+	{ id: "net", label: "Rede", icon: ArrowUpDown, color: "#2dd4bf" }
 ];
 
 const DEFAULT_CONFIG: WidgetConfig = {
 	left: ["weather"],
 	right: ["battery"]
+};
+
+// Drops ids saved by older versions that no longer have a widget (e.g. "journal").
+const sanitizeConfig = (config: WidgetConfig | undefined): WidgetConfig => {
+	if (!config) return DEFAULT_CONFIG;
+	const known = (id: string) => WIDGET_DEFS.some((w) => w.id === id);
+	return { left: config.left.filter(known), right: config.right.filter(known) };
 };
 
 const MAX_PER_ZONE = 2;
@@ -204,12 +209,12 @@ export function StatusWidgetConfig({
 	onChange,
 	unavailableIds = []
 }: StatusWidgetConfigProps) {
-	const [config, setConfig] = useState<WidgetConfig>(() => value || DEFAULT_CONFIG);
+	const [config, setConfig] = useState<WidgetConfig>(() => sanitizeConfig(value));
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const draggedFromZone = useRef<"left" | "right" | null>(null);
 
 	useEffect(() => {
-		setConfig(value || DEFAULT_CONFIG);
+		setConfig(sanitizeConfig(value));
 	}, [value]);
 
 	useEffect(() => {

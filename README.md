@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Uma ilha dinâmica, um dock nativo e um espaço de organização local para Windows.
+  Uma ilha dinâmica e um dock nativo para Windows.
 </p>
 
 <p align="center">
@@ -28,19 +28,8 @@ Willow integra recursos do sistema sem transformar a área de trabalho em um pai
 | -------------- | ------------------------------------------------------------------------ |
 | Ilha           | Relógio, calendário, temporizador, mídia, clima e indicadores do sistema |
 | Dock           | Aplicativos fixados, janelas abertas, prévias e atalhos locais           |
-| Journal        | Calendário mensal, diário, tarefas, hábitos, sono e anotações semanais   |
 | Painel de IA   | Consulta opcional de limites de uso das contas locais compatíveis        |
 | Personalização | Temas, cor, materiais, escala, comportamento e widgets                   |
-
-## Willow Journal
-
-O Journal abre em uma janela própria, usa banco SQLite local e salva automaticamente. Ele inclui histórico de desfazer e refazer, impressão organizada, calendário mensal, diário, tarefas, hábitos, sono e planejamento semanal.
-
-<p align="center">
-  <img src="docs/screenshots/willow-journal.png" alt="Willow Journal em uma janela própria" width="100%">
-</p>
-
-Os dados ficam em `willow-journal.sqlite3`, dentro da pasta local de dados do aplicativo. Nenhuma informação do Journal é enviada para serviços externos.
 
 ## Ilha dinâmica
 
@@ -68,7 +57,6 @@ O gatilho superior pode ser ajustado por posição, largura e altura. Em navegad
 - Reordenação por arrastar
 - Prévias de janelas
 - Atalhos `Win + 1` até `Win + 9`
-- Willow Journal fixo na área direita
 - Seção opcional para unidades, Downloads, Documentos, Imagens e Lixeira
 - Modos fixo, inteligente e espiar
 
@@ -141,7 +129,6 @@ src/
 src-tauri/
   src/ai_usage.rs   leitura local dos limites de IA
   src/commands.rs   comandos expostos à interface
-  src/journal.rs    banco SQLite e janela do Journal
   src/services.rs   integrações contínuas com o Windows
   src/utils.rs      armazenamento e utilitários
   icons/            ícones do executável e do instalador

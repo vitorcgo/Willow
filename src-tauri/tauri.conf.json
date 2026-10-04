@@ -53,28 +53,6 @@
         "center": true
       },
       {
-        "label": "journal",
-        "title": "Willow Journal",
-        "url": "settings.html?journal=1",
-        "width": 1280,
-        "height": 720,
-        "minWidth": 760,
-        "minHeight": 560,
-        "decorations": false,
-        "transparent": false,
-        "resizable": true,
-        "maximizable": true,
-        "minimizable": true,
-        "closable": false,
-        "alwaysOnTop": false,
-        "visibleOnAllWorkspaces": false,
-        "focus": true,
-        "skipTaskbar": false,
-        "shadow": true,
-        "visible": false,
-        "center": true
-      },
-      {
         "label": "ai-usage",
         "title": "Uso de IA do Willow",
         "url": "ai-usage.html",
